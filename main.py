@@ -11,15 +11,24 @@ from modules.engines import stocks_engine
 from modules.engines import marketaux_engine
 from modules.clients.db_client import NewsDatabase
 from modules.clients.infisical_client import InfisicalManager
+from modules.clients.calendar_client import CalendarPopulator
 
 # Configure logging
+LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+log_filename = os.path.join(LOGS_DIR, f"automation_{timestamp}.log")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.FileHandler("automation.log"),
+        logging.FileHandler(log_filename, mode='a', encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
-    ]
+    ],
+    force=True
 )
 
 def update_log(message):
@@ -57,6 +66,16 @@ def run_automation():
     if not db:
         update_log("❌ Error: News Database is required for scan result persistence.")
         return
+
+    # 1.5 Sync Calendar (New Feature)
+    try:
+        if db:
+            update_log("📅 Syncing Economic & Earnings Calendar...")
+            cal_pop = CalendarPopulator(db, analyst_db=analyst_db)
+            cal_pop.sync_week()
+            update_log("✅ Calendar Sync Complete.")
+    except Exception as e:
+        update_log(f"⚠️ Calendar Sync Failed: {e}")
 
     # 2. Run Macro Scan
     try:

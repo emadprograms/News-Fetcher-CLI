@@ -71,7 +71,7 @@ launchctl load "$PLIST_PATH"
 
 echo "✅ Automation scheduled daily at $HOUR:$MINUTE."
 echo "📜 Logs will be available at:"
-echo "   - $PROJECT_DIR/automation.log (App logs)"
+echo "   - $PROJECT_DIR/logs/ (App logs - Timestamped)"
 echo "   - $PROJECT_DIR/automation_stdout.log (System output)"
 echo "   - $PROJECT_DIR/automation_stderr.log (System errors)"
 echo "--------------------------------------"

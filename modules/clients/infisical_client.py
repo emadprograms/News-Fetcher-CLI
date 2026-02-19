@@ -1,6 +1,7 @@
-from infisical_client import InfisicalClient, ClientSettings, GetSecretOptions, AuthenticationOptions, UniversalAuthMethod
+from infisical_client import InfisicalClient, ClientSettings, GetSecretOptions, AuthenticationOptions, UniversalAuthMethod, ListSecretsOptions
 import os
 import toml
+from dotenv import load_dotenv
 
 class InfisicalManager:
     def __init__(self, project_id=None):
@@ -10,6 +11,7 @@ class InfisicalManager:
         1. Environment Vars (INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET)
         2. Local Secrets (secrets.toml -> [infiscal] section)
         """
+        load_dotenv()
         self.client = None
         self.is_connected = False
         self.project_id = project_id 
@@ -77,15 +79,30 @@ class InfisicalManager:
             print(f"❌ Failed to fetch secret '{secret_name}': {e}")
             return None
 
+    def list_secrets(self, environment="dev", path="/"):
+        """
+        Lists all secrets in the project.
+        """
+        if not self.is_connected:
+            return []
+        
+        try:
+            return self.client.listSecrets(options=ListSecretsOptions(
+                project_id=self.project_id,
+                environment=environment,
+                path=path
+            ))
+        except Exception as e:
+            print(f"❌ Failed to list secrets: {e}")
+            return []
+
     def get_marketaux_keys(self):
         """
-        Helper to fetch keys. Supports 2 formats:
-        1. Single Secret (Legacy): MARKETAUX_API_KEYS (comma-separated or JSON)
-        2. Individual Secrets (New): marketaux_news_data_API_KEY_1, _2, etc.
+        Helper to fetch keys. Dynamically finds all secrets starting with 'marketaux-'.
         """
         keys = []
         
-        # 1. Try Legacy List
+        # 1. Try Legacy List (Just in case)
         val = self.get_secret("MARKETAUX_API_KEYS")
         if val:
             if "[" in val and "]" in val:
@@ -99,22 +116,23 @@ class InfisicalManager:
             else:
                 keys.append(val)
         
-        # 2. Try Individual Secrets (1..5)
-        # We loop until we fail to find one, or hit a reasonable limit (e.g. 10)
-        # The user specifically asked for "1 and then 2 and 3"
-        for i in range(1, 11):
-            name = f"marketaux_news_data_API_KEY_{i}"
-            val = self.get_secret(name)
-            if val:
-                keys.append(val)
-            else:
-                # If 1 is missing, maybe they start at 1. If 2 missing, probably done.
-                # But to be safe (if one is deleted), we continue a bit? 
-                # Optimization: stop if we found some keys and hit a miss? 
-                # Or just check first 5 slots blindly.
-                if i > 3 and not val: 
-                    break 
-                    
+        # 2. Dynamic Discovery (The robust way)
+        # Find all secrets that start with "marketaux-"
+        try:
+            all_secrets = self.list_secrets()
+            for s in all_secrets:
+                if s.secret_key.lower().startswith("marketaux-"):
+                    if hasattr(s, 'secret_value'):
+                        keys.append(s.secret_value)
+                    else:
+                        val = self.get_secret(s.secret_key)
+                        if val: keys.append(val)
+                        
+            print(f"🔑 Found {len(keys)} MarketAux keys via dynamic discovery.")
+            
+        except Exception as e:
+            print(f"⚠️ Dynamic discovery failed: {e}")
+
         return list(set(keys)) # Dedup just in case
 
     def get_openrouter_key(self):
