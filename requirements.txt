@@ -1,0 +1,17 @@
+beautifulsoup4
+requests
+feedparser
+textblob
+yfinance
+pandas
+numpy
+google-generativeai
+libsql-client
+cloudscraper
+curl_cffi
+selenium 
+webdriver-manager
+infisical-python
+investpy
+python-dateutil
+toml
