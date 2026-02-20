@@ -551,7 +551,7 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
     except Exception as e:
         log_callback(f"❌ Critical Macro Scan Error: {e}")
     finally:
-        if driver: driver.quit()
+        if driver: market_utils.force_quit_driver(driver)
         
         # 🏁 ONLY FINISH if we actually went through the targets
         # If interrupted by user/error before starting, don't kill the resume state

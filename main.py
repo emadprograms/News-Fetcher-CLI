@@ -446,3 +446,4 @@ if __name__ == "__main__":
                 time.sleep(COOLDOWN_BETWEEN_RUNS)
     
     update_log("🎬 ALL HUNT ATTEMPTS FINISHED.")
+    os._exit(0)  # 🔒 SAFETY NET: Force-kill process to prevent zombie threads/Chrome from blocking GitHub Actions

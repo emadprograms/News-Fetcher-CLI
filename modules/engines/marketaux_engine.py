@@ -332,7 +332,7 @@ class MarketAuxEngine:
                     self.log_callback(f"❌ Critical MarketAux Error: {e}")
         finally:
             if driver:
-                try: driver.quit()
+                try: market_utils.force_quit_driver(driver)
                 except: pass
             
             # 🏁 ONLY FINISH if we actually completed the loop

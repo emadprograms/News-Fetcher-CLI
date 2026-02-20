@@ -419,7 +419,7 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
 
     finally:
         log_callback(f"├── 🛑 Closing Chrome Driver...")
-        driver.quit()
+        market_utils.force_quit_driver(driver)
 
     return found_reports
 
@@ -707,7 +707,7 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
     except Exception as e:
         log_callback(f"❌ Critical Stock Scan Error: {e}")
     finally:
-        if driver: driver.quit()
+        if driver: market_utils.force_quit_driver(driver)
         
         # 🏁 ONLY FINISH if we actually went through the targets
         if 'active_targets' in locals() and len(active_targets) > 0:
