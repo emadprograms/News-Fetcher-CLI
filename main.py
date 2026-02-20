@@ -141,29 +141,41 @@ def run_automation():
     start_time = time.time()
     update_log("🚀 INITIATING AUTOMATED GRANDMASTER HUNT PROTOCOL (MARKET-CENTRIC DAY)")
     
-    # 🕒 MARKET-CENTRIC DAY LOGIC (1 AM UTC ANCHOR, 9 AM UTC SWITCH)
+    # 🕒 REF-LOGIC: MARKET-CENTRIC TRADING SESSIONS
     # ------------------------------------------------------------------
-    # 1. News Attribution: Session begins at 1 AM UTC (Post-Market Close).
-    # 2. Focus Switch: We focus on "Yesterday" until 9 AM UTC (Pre-market Open).
-    # 3. Hard Cutoff: Running before 9 AM UTC enforces a strict 24H block.
+    # Anchor: 1 AM UTC | Switch-over: 9 AM UTC (Pre-market)
+    # Weekends/Holidays: Treated as extensions of the last Trading Day.
     # ------------------------------------------------------------------
     
     now_utc = datetime.datetime.now(datetime.timezone.utc)
+    today_utc = now_utc.date()
     
-    # DETERMINE TARGET DATE (What session are we reporting on?)
-    if now_utc.hour < 9:
-        # Before 9 AM UTC: Focus on the trading session that JUST ENDED
-        target_date = (now_utc - datetime.timedelta(days=1)).date()
-        # STRICTOR WINDOW: From 1 AM (Yesterday) to 1 AM (Today)
+    # 1. Identify the 'Logical' Trading Session we are dealing with
+    current_market_day = market_utils.MarketCalendar.get_current_or_prev_trading_day(today_utc)
+    
+    # 2. Determine if we shift focus
+    # Rule: On a Trading Day, we switch to Today's session only after 9 AM UTC.
+    is_early_trading_day = (today_utc == current_market_day and now_utc.hour < 9)
+    
+    if is_early_trading_day:
+        # Before 9 AM on a Trading Day: Finish the PREVIOUS session
+        target_date = market_utils.MarketCalendar.get_prev_trading_day(current_market_day)
         lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-        lookback_end = lookback_start + datetime.timedelta(hours=24)
+        # Finalize strictly at the start of the next (which is 'current') session
+        lookback_end = datetime.datetime.combine(current_market_day, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
     else:
-        # After 9 AM UTC: Focus on the trading session that STARTED TODAY
-        target_date = now_utc.date()
-        # ONGOING WINDOW: From 1 AM (Today) to NOW
+        # After 9 AM or on a Weekend/Holiday: Focus on the CURRENT/LATEST session
+        target_date = current_market_day
         lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-        lookback_end = now_utc
         
+        # Determine End
+        if today_utc == current_market_day:
+            # Active Trading Day: Rolling window
+            lookback_end = now_utc
+        else:
+            # Weekend/Holiday: Still focused on last Trading Day, but capture everything since 1 AM then
+            lookback_end = now_utc
+            
     update_log(f"⏰ TRADING DATE FOCUS: {target_date}")
     update_log(f"⏰ LOOKBACK WINDOW (UTC): {lookback_start.strftime('%Y-%m-%d %H:%M')} -> {lookback_end.strftime('%Y-%m-%d %H:%M')}")
     

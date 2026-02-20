@@ -424,3 +424,62 @@ def fetch_yahoo_selenium(driver, url, log_callback, allow_sources=None):
 def parse_iso_datetime(iso_str):
     try: return parser.parse(iso_str)
     except: return None
+
+class MarketCalendar:
+    """
+    Utility for NYSE Trading Days and Market Sessions.
+    """
+    # NYSE Holidays for 2026
+    HOLIDAYS_2026 = {
+        datetime.date(2026, 1, 1),   # New Year's Day
+        datetime.date(2026, 1, 19),  # MLK Jr. Day
+        datetime.date(2026, 2, 16),  # Presidents Day
+        datetime.date(2026, 4, 3),   # Good Friday
+        datetime.date(2026, 5, 25),  # Memorial Day
+        datetime.date(2026, 6, 19),  # Juneteenth
+        datetime.date(2026, 7, 3),   # Independence Day (Observed)
+        datetime.date(2026, 9, 7),   # Labor Day
+        datetime.date(2026, 11, 26), # Thanksgiving
+        datetime.date(2026, 12, 25), # Christmas
+    }
+
+    @staticmethod
+    def is_trading_day(dt):
+        """ Checks if a given date is a NYSE trading day. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        if dt.weekday() >= 5: # Saturday/Sunday
+            return False
+        if dt in MarketCalendar.HOLIDAYS_2026:
+            return False
+        return True
+
+    @staticmethod
+    def get_prev_trading_day(dt):
+        """ Returns the most recent trading day before the given date. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        curr = dt - datetime.timedelta(days=1)
+        while not MarketCalendar.is_trading_day(curr):
+            curr -= datetime.timedelta(days=1)
+        return curr
+
+    @staticmethod
+    def get_next_trading_day(dt):
+        """ Returns the next trading day after the given date. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        curr = dt + datetime.timedelta(days=1)
+        while not MarketCalendar.is_trading_day(curr):
+            curr += datetime.timedelta(days=1)
+        return curr
+
+    @staticmethod
+    def get_current_or_prev_trading_day(dt):
+        """ If today is a trading day, returns today. Otherwise, returns the last trading day. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        curr = dt
+        while not MarketCalendar.is_trading_day(curr):
+            curr -= datetime.timedelta(days=1)
+        return curr
