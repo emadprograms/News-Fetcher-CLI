@@ -152,7 +152,7 @@ class CalendarPopulator:
             print(f"🔍 Earnings Filter: Off (Capturing All). Tracking {len(valid_tickers)} Major Tickers for context.")
             print("🚀 Launching Browser for Earnings Sync (This takes ~20s)...")
             
-            driver = get_selenium_driver()
+            driver = get_selenium_driver(headless=True)
             
             # Fetch Monday -> Friday (5 Days)
             for i in range(5):

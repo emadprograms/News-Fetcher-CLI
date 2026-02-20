@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 from dateutil import parser
+from urllib.parse import urlparse
 from modules.utils import market_utils
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -55,7 +56,7 @@ YAHOO_RSS_TARGETS = [
 
 
 
-def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, headless=False):
+def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, headless=False, lookback_start=None):
     """
     Main entry point for Stocks Scan.
     scans YAHOO_RSS_TARGETS for news.
@@ -156,9 +157,14 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                     except:
                         continue 
                     
-                    # Check Date only
-                    if pub_date_only != target_date:
-                        continue
+                    # DATE/TIME CHECK (Sliding Window)
+                    if lookback_start:
+                        if pub_dt < lookback_start:
+                            continue
+                    else:
+                        # Fallback to strict date check if no lookback provided
+                        if pub_date_only != target_date:
+                            continue
                     
                     if title in seen_titles: 
                         log_callback(f"│   └── ⏭️ Skipping known title: {title[:30]}...") 
@@ -215,7 +221,6 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                          continue
 
                     # 🛑 STRICT PRE-FLIGHT DOMAIN CHECK
-                    from urllib.parse import urlparse
                     try:
                         d_parts = urlparse(clean_url)
                         domain = d_parts.netloc.lower()
@@ -415,7 +420,7 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
 
     return found_reports
 
-def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None):
+def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, lookback_start=None):
     """
     Company Specific Hunter (Yahoo Finance).
     Fetches news for a specific list of tickers.
@@ -500,8 +505,14 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
                     except:
                         continue 
                     
-                    if pub_date_only != target_date:
-                        continue
+                    # DATE/TIME CHECK (Sliding Window)
+                    if lookback_start:
+                        if pub_dt < lookback_start:
+                            continue
+                    else:
+                        # Fallback to strict date check
+                        if pub_date_only != target_date:
+                            continue
                     
                     if title in seen_titles:
                          log_callback(f"│   └── ⏭️ Skipping known title: {title[:30]}...")
@@ -658,7 +669,6 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
                                 "category": ticker 
                             }
                             
-                            # 💾 INCREMENTAL SAVE
                             # 💾 INCREMENTAL SAVE
                             if db:
                                 inserted_count, dups_count = db.insert_news([report_item], ticker)

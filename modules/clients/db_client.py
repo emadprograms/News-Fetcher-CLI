@@ -219,11 +219,9 @@ class NewsDatabase:
                     # Robust parsing using dateutil
                     dt = dt_parser.parse(row[3])
                     
-                    # Convert to Bahrain Time (UTC+3)
-                    bahrain_tz = datetime.timezone(datetime.timedelta(hours=3))
-                    dt_local = dt.astimezone(bahrain_tz)
-                    
-                    time_str = dt_local.strftime("%H:%M %Z%z").strip()
+                    # Convert to UTC
+                    dt_utc = dt.astimezone(datetime.timezone.utc)
+                    time_str = dt_utc.strftime("%H:%M UTC").strip()
                 except:
                     time_str = "??:??"
 
@@ -256,51 +254,34 @@ class NewsDatabase:
         return cache_map
 
     def fetch_existing_titles(self, date_obj):
-        """ Returns a DICT of {normalized_title: id} for the given date for fast deduplication and auditing. """
+        """ Returns a DICT of {normalized_title: id} for the given date for fast deduplication. """
         if not self.client: return {}
-        date_iso = date_obj.strftime("%Y-%m-%d")
+        target_iso = date_obj.strftime("%Y-%m-%d")
         try:
-
-            # We fetch ALL and filter in Python to handle mixed date formats (ISO vs Raw RSS)
-            sql = "SELECT id, title, published_at FROM market_news"
-            rs = self.client.execute(sql)
+            # Use WHERE clause to filter at the DB level (much faster than loading all rows)
+            sql = "SELECT id, title, published_at FROM market_news WHERE published_at LIKE ? || '%'"
+            rs = self.client.execute(sql, [target_iso])
             titles_map = {}
-            target_iso = date_obj.strftime("%Y-%m-%d")
             
             for row in rs.rows:
                 row_id = row[0]
                 t = row[1]
                 pub_at = row[2]
                 
-                # DEBUG: Trace Raw Rows
-                if "Trump" in t or "trump" in t:
-                     print(f"🕵️ RAW DB ROW: '{t[:30]}...' | Date: {pub_at} | Target: {target_iso}")
-                
-                # Check Date Match (Robust)
+                # Verify date match (handles edge cases with timezone offsets)
                 try:
-                    # Try ISO string match First (Fast)
-                    if pub_at.startswith(target_iso):
+                    if pub_at and pub_at.startswith(target_iso):
                         match = True
                     else:
-                        # Fallback Parse
                         dt = dt_parser.parse(pub_at)
-                        if dt.date() == date_obj:
-                            match = True
-                        else:
-                            match = False
-                except:
+                        match = dt.date() == date_obj
+                except Exception:
                     match = False
                 
                 if match:
-                    # improved normalization
                     norm_t = market_utils.normalize_title(t).lower()
                     titles_map[norm_t] = row_id
-                    
-                    # DEBUG: Trace DB Loading
-                    if "trump" in norm_t:
-                        print(f"📂 DB LOAD: '{norm_t}' (ID: {row_id}, DateMatch: {match})")
                 
-            print(f"🔎 DEBUG: DB has {len(titles_map)} existing (normalized) titles for {target_iso}")
             return titles_map
         except Exception as e:
             print(f"⚠️ Fetch Existing Titles Error: {e}")
@@ -330,11 +311,9 @@ class NewsDatabase:
                     # Robust parsing
                     dt = dt_parser.parse(row[3])
                     
-                    # Convert to Bahrain Time (UTC+3)
-                    bahrain_tz = datetime.timezone(datetime.timedelta(hours=3))
-                    dt_local = dt.astimezone(bahrain_tz)
-                    
-                    time_str = dt_local.strftime("%H:%M %d-%b")
+                    # Convert to UTC
+                    dt_utc = dt.astimezone(datetime.timezone.utc)
+                    time_str = dt_utc.strftime("%H:%M %d-%b UTC")
                 except:
                     time_str = "Unknown"
 
@@ -380,11 +359,9 @@ class NewsDatabase:
                     # Robust Parsing
                     dt = dt_parser.parse(row[3])
                     
-                    # Convert to Bahrain Time (UTC+3)
-                    bahrain_tz = datetime.timezone(datetime.timedelta(hours=3))
-                    dt_local = dt.astimezone(bahrain_tz)
-                    
-                    time_str = dt_local.strftime("%H:%M %d-%b")
+                    # Convert to UTC
+                    dt_utc = dt.astimezone(datetime.timezone.utc)
+                    time_str = dt_utc.strftime("%H:%M %d-%b UTC")
                 except:
                     time_str = "Unknown"
 
@@ -489,19 +466,15 @@ class NewsDatabase:
             sql = "SELECT id FROM market_news WHERE url = ?"
             rs = self.client.execute(sql, [url])
             if rs.rows: 
-                print(f"    ✅ MATCH FOUND by URL: {url}")
                 return rs.rows[0][0]
             
             # Check Title (slower, but catches URL variations)
             if title:
-                # Use simplified normalization check if possible, but exact match for now
                 sql_t = "SELECT id FROM market_news WHERE title = ?"
                 rs_t = self.client.execute(sql_t, [title])
                 if rs_t.rows: 
-                    print(f"    ✅ MATCH FOUND by Title: {title}")
                     return rs_t.rows[0][0]
             
-            print(f"    ❌ NO MATCH for: {url} OR {title}")
             return False
         except Exception as e:
             print(f"⚠️ Existence Check Error: {e}")

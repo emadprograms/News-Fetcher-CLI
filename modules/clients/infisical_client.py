@@ -147,6 +147,22 @@ class InfisicalManager:
         """
         return self.get_secret("massive_stock_data_API_KEY")
 
+    def get_discord_webhook(self):
+        """
+        Fetches the Discord Webhook URL for notifications.
+        """
+        # Try specific user names, then fallback
+        names = [
+            "discord_news_harvest_cli_webhook_url",
+            "discord_data_harvest_cli_webhook_url",
+            "discord_harvest_cli_webhook_url",
+            "DISCORD_WEBHOOK_URL"
+        ]
+        for name in names:
+            val = self.get_secret(name)
+            if val: return val
+        return None
+
     def get_turso_news_credentials(self):
         """
         Fetches Turso News DB credentials.

@@ -30,8 +30,17 @@ class ScanProgressManager:
             with open(self.state_file, 'r') as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
-             self._ensure_file()
-             return self.load_state()
+            # Reset to clean default state instead of recursing
+            default_state = {
+                "active_scan": False,
+                "scan_type": None,
+                "start_time": None,
+                "total_targets": [],
+                "completed_targets": [],
+                "current_target": None
+            }
+            self.util_save_state(default_state)
+            return default_state
 
     def util_save_state(self, state):
         with open(self.state_file, 'w') as f:

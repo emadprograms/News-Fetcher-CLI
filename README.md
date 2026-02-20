@@ -1,18 +1,25 @@
-# 🦅 News-Fetcher: The Grandmaster Edition
+# 🦅 News-Fetcher: The Automation Edition (CLI)
 
-A professional-grade market intelligence tool designed to scrape, aggregate, and analyze financial news from multiple sources (Yahoo Finance, Google News, MarketAux). Built for reliability, speed, and granular control.
+A professional-grade market intelligence tool designed to scrape, aggregate, and analyze financial news from multiple sources (Yahoo Finance, Google News, MarketAux). Built for reliability, background automation, and granular control.
+
+This repository focuses on the core **engines** and **automated background runner**.
 
 ## 🚀 Key Features
 
-### 🔍 Grandmaster Hunt
+### 🔍 Grandmaster Hunt (CLI)
+- **Automated Scheduling**: Runs daily via macOS `launchd` (08:00 AM by default).
 - **Deep Scanning**: Fetches full article content, not just headlines.
 - **Micro & Macro**: Segregates "Macro" economic news from "Micro" company-specific catalysts.
-- **Granular Control**: Select specific sectors (Earnings, IPOs, Insider Trades) and filter daily earnings by specific companies (e.g., "Scan Nike only").
+- **Auto-Sync Calendar**: Automatically fetches Economic and Earnings calendars before every scan.
 
 ### 🔒 Centralized Security (Infisical)
-- **Machine Identity Auth**: All API keys and credentials are managed via Infisical.
-- **Universal Auth**: Seamless authentication using Client IDs and Secrets, with auto-rotation for API keys.
-- **Zero-Trust**: No sensitive keys are stored in the codebase.
+- **Machine Identity Auth**: Managed via Infisical Universal Auth.
+- **Dynamic Discovery**: Automatically finds all MarketAux and Turso credentials in your project.
+- **Zero-Trust**: No keys stored in code; strictly uses `.env` for Infisical access.
+
+### 📋 Real-time Logging
+- **Timestamped Logs**: Every run generates a unique log file in the `logs/` directory.
+- **Live Streaming**: Logs are flushed to disk in real-time for immediate monitoring.
 
 ## 🛠️ Setup
 
@@ -28,29 +35,26 @@ A professional-grade market intelligence tool designed to scrape, aggregate, and
     ```
 
 3.  **Secrets (Infisical)**:
-    Create a `.streamlit/secrets.toml` file with your Infisical Machine Identity credentials:
-    ```toml
-    [infisical]
-    client_id = "..."
-    client_secret = "..."
-    project_id = "..."
+    Create a `.env` file with your Infisical Machine Identity credentials:
+    ```env
+    INFISICAL_CLIENT_ID="your_client_id"
+    INFISICAL_CLIENT_SECRET="your_client_secret"
+    INFISICAL_PROJECT_ID="your_project_id"
     ```
 
 ## 🖥️ Usage
 
-Run the dashboard:
+### Run Manually
 ```bash
-streamlit run app.py
+python3 main.py
 ```
 
-### Marketplace Settings
-- **Enable Market Scan**: Toggles the macro-level scan.
-- **Select Market Categories**: Filter for specific news types (e.g., "Earnings & Results", "Mergers & Acquisitions").
-- **Target Specific Companies**: (Visible when "Earnings" is enabled) meticulously select which reporting companies to scan today.
-
-### Company Watchlist
-- **Enable Specific Company Scan**: Force-scan your personal watchlist.
-- **Select Companies**: Defaults to ALL your monitored tickers.
+### Setup Automation (macOS)
+Run the configuration script to schedule daily scans:
+```bash
+chmod +x setup_automation.sh
+./setup_automation.sh
+```
 
 ---
 *Built for the Alpha Hunter.*

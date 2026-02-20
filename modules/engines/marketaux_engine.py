@@ -24,7 +24,7 @@ class MarketAuxEngine:
         self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
         return key
 
-    def run_company_scan(self, target_date, ticker_list, db=None, cache_map=None, existing_titles=None, headless=False):
+    def run_company_scan(self, target_date, ticker_list, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None):
         """
         Main Execution Method (Incremental/Safe Mode).
         1. For each ticker:
@@ -95,7 +95,7 @@ class MarketAuxEngine:
                     # --- STEP A: MULTI-LAYER DISCOVERY ---
                     
                     # PROTOCOL 1: Google RSS (Free, Fast)
-                    layer1_items = self._fetch_google_rss(ticker, target_date, seen_titles)
+                    layer1_items = self._fetch_google_rss(ticker, target_date, seen_titles, lookback_start=lookback_start)
                     
                     # PROTOCOL 2: MarketAux API (Paid, Backup)
                     layer2_items = self._fetch_ticker_metadata(ticker, target_date)
@@ -163,7 +163,6 @@ class MarketAuxEngine:
                             continue
                         
                         # 🛑 STRICT PRE-FLIGHT DOMAIN CHECK
-                        from urllib.parse import urlparse
                         try:
                             d_parts = urlparse(url)
                             domain = d_parts.netloc.lower()
@@ -341,12 +340,9 @@ class MarketAuxEngine:
                  pm.finish_scan()
             
         return all_final_reports
-                
-        return all_final_reports
 
 
-        
-    def _fetch_google_rss(self, ticker, target_date, seen_titles):
+    def _fetch_google_rss(self, ticker, target_date, seen_titles, lookback_start=None):
         """
         Fetches Google RSS for a ticker, checking against seen_titles.
         Handles caching and strict date filtering.
@@ -379,10 +375,15 @@ class MarketAuxEngine:
                 pub_date_str = item.pubDate.text
                 source_str = item.source.text if item.source else "Google News"
                 
-                # Date Check
+                # DATE/TIME CHECK (Sliding Window)
                 try:
                     pub_dt = parser.parse(pub_date_str)
-                    if pub_dt.date() != target_date: continue
+                    if lookback_start:
+                        if pub_dt < lookback_start:
+                            continue
+                    else:
+                        if pub_dt.date() != target_date:
+                            continue
                 except: continue
                 
                 # Title Dedup
@@ -469,6 +470,6 @@ class MarketAuxEngine:
             
         return articles
 
-def run_marketaux_scan(api_keys, target_date, ticker_list, log_callback, db=None, cache_map=None, existing_titles=None, headless=False):
+def run_marketaux_scan(api_keys, target_date, ticker_list, log_callback, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None):
     engine = MarketAuxEngine(api_keys, log_callback)
-    return engine.run_company_scan(target_date, ticker_list, db, cache_map, existing_titles, headless=headless)
+    return engine.run_company_scan(target_date, ticker_list, db, cache_map, existing_titles, headless=headless, lookback_start=lookback_start)

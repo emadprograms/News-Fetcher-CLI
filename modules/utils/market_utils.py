@@ -1,4 +1,5 @@
 import requests
+import json
 from bs4 import BeautifulSoup
 from dateutil import parser
 import datetime
@@ -6,6 +7,7 @@ import os
 import sys
 import signal
 import time
+from urllib.parse import urlparse
 
 # Selenium Imports
 from selenium import webdriver
@@ -175,8 +177,6 @@ def fetch_yahoo_selenium(driver, url, log_callback, allow_sources=None):
         
         if not driver: return None
             
-        if not driver: return None
-            
         try:
             # Set Script Timeout too (just in case)
             if log_callback: log_callback(f"│   │   │   ├── 🚦 Visiting: {domain} ...")
@@ -235,7 +235,6 @@ def fetch_yahoo_selenium(driver, url, log_callback, allow_sources=None):
                     break # Success!
                 else:
                     # Detected UK/CA/SG/etc.
-                    if log_callback: log_callback(f"│   │   │   └── 🛑 BLOCKED Non-US Domain: {d}")
                     if log_callback: log_callback(f"│   │   │   └── 🛑 BLOCKED Non-US Domain: {d}")
                     raise BlockedContentException(f"Redirected to Non-US Domain: {d}")
             
@@ -312,7 +311,6 @@ def fetch_yahoo_selenium(driver, url, log_callback, allow_sources=None):
         publisher = "Yahoo Finance"
         try:
             # Strategy -1: JSON-LD (Golden Source)
-            import json
             ld_scripts = soup.find_all("script", type="application/ld+json")
             for script in ld_scripts:
                 try:

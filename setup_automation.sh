@@ -53,9 +53,9 @@ cat <<EOF > "$PLIST_PATH"
         <integer>$MINUTE</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>$PROJECT_DIR/automation_stdout.log</string>
+    <string>$PROJECT_DIR/logs/system/automation_stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>$PROJECT_DIR/automation_stderr.log</string>
+    <string>$PROJECT_DIR/logs/system/automation_stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -71,8 +71,8 @@ launchctl load "$PLIST_PATH"
 
 echo "✅ Automation scheduled daily at $HOUR:$MINUTE."
 echo "📜 Logs will be available at:"
-echo "   - $PROJECT_DIR/logs/ (App logs - Timestamped)"
-echo "   - $PROJECT_DIR/automation_stdout.log (System output)"
-echo "   - $PROJECT_DIR/automation_stderr.log (System errors)"
+echo "   - $PROJECT_DIR/logs/app/ (App logs - Timestamped)"
+echo "   - $PROJECT_DIR/logs/system/ (System output & errors)"
 echo "--------------------------------------"
+echo "To run manually now: launchctl start $PLIST_NAME"
 echo "To disable, run: launchctl unload $PLIST_PATH"

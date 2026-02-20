@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 from dateutil import parser
+from urllib.parse import urlparse
 from modules.utils import market_utils
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -136,7 +137,7 @@ def generate_event_feeds(db):
         print(f"⚠️ Event Feed Gen Error: {e}")
         return []
 
-def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, manual_event_feeds=None, headless=False):
+def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, manual_event_feeds=None, headless=False, lookback_start=None):
     """
     The Yahoo Macro Hunter (Selenium Edition).
     Fetches Economy, Energy, and Geo news from Yahoo Finance.
@@ -267,9 +268,14 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                     except:
                         continue 
                     
-                    # DATE CHECK
-                    if pub_date_only != target_date:
-                        continue
+                    # DATE/TIME CHECK (Sliding Window)
+                    if lookback_start:
+                        if pub_dt < lookback_start:
+                            continue
+                    else:
+                        # Fallback to strict date if no lookback_start provided
+                        if pub_date_only != target_date:
+                            continue
                     
                     # URL RESOLUTION (Early for Dedupe)
                     real_url = market_utils.decode_google_news_url(google_link)
@@ -292,9 +298,7 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                          log_callback(f"│   └── ⏭️ Skipping '{title[:30]}...' (Found in DB Row #{found_db_id})")
                          continue 
 
-                    if found_db_id:
-                         log_callback(f"│   └── ⏭️ Skipping '{title[:30]}...' (Found in DB Row #{found_db_id})")
-                         continue
+
 
                     # Normalize Title (Match DB behavior)
                     norm_title = market_utils.normalize_title(title).lower()
@@ -358,7 +362,6 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                     
                     
                     # 🛑 STRICT PRE-FLIGHT DOMAIN CHECK
-                    from urllib.parse import urlparse
                     try:
                         d_parts = urlparse(clean_url)
                         domain = d_parts.netloc.lower()
@@ -492,7 +495,6 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                         }
                         
                         # 💾 INCREMENTAL SAVE
-                        # 💾 INCREMENTAL SAVE
                         if db:
                             inserted_count, dups_count = db.insert_news([report_item], category_tag)
                             if inserted_count > 0:
@@ -545,7 +547,7 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
             pm.mark_target_complete(feed_name)
             
     except Exception as e:
-        log_callback(f"❌ Critical Marco Scan Error: {e}")
+        log_callback(f"❌ Critical Macro Scan Error: {e}")
     finally:
         if driver: driver.quit()
         
