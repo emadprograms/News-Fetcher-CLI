@@ -47,6 +47,12 @@ async def trigger_fetch(ctx):
         "ref": "main"
     }
     
+    # Add optional inputs if provided
+    if target_date:
+        data["inputs"] = {
+            "target_date": target_date
+        }
+    
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=data) as response:
