@@ -15,6 +15,7 @@ from modules.engines import marketaux_engine
 from modules.clients.db_client import NewsDatabase
 from modules.clients.infisical_client import InfisicalManager
 from modules.clients.calendar_client import CalendarPopulator
+import modules.utils.market_utils as market_utils
 
 # Configure logging
 LOGS_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
