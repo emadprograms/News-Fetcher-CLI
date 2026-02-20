@@ -29,8 +29,8 @@ async def on_ready():
 async def trigger_fetch(ctx):
     """Triggers the GitHub Actions News-Fetcher workflow."""
     
-    # Visual feedback so user knows it instantly triggered
-    status_msg = await ctx.send("🚀 Sending signal to GitHub Actions...")
+    # Visual feedback focused on News-Fetcher identity
+    status_msg = await ctx.send("� **Connecting to News Grid...** Dispatching signal to GitHub.")
     
     # Prepare GitHub API request
     url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/dispatches"
@@ -51,7 +51,7 @@ async def trigger_fetch(ctx):
             async with session.post(url, headers=headers, json=data) as response:
                 # GitHub returns 204 No Content on a successful dispatch
                 if response.status == 204:
-                    await status_msg.edit(content="✅ **News-Fetcher workflow successfully triggered!**\n> It may take a few seconds for the runner to boot. You will receive the final report here shortly.")
+                    await status_msg.edit(content="💠 **Transmission Successful!**\n> **News-Fetcher** is now initializing the harvest runner. The final report will be delivered here momentarily. 📰")
                     print(f"Triggered fetch via Discord user: {ctx.author}")
                 else:
                     response_json = await response.json() if response.content_type == 'application/json' else {}
