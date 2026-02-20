@@ -172,7 +172,32 @@ class DeadDriverException(Exception):
 class BlockedContentException(Exception):
     pass
 
-def fetch_yahoo_selenium(driver, url, log_callback):
+import concurrent.futures
+
+def fetch_yahoo_selenium(driver, url, log_callback, timeout=20):
+    """
+    Wraps the Yahoo fetch logic in a hard timeout to prevent Selenium from hanging indefinitely.
+    If it hangs, it raises DeadDriverException so the engine can force-quit and restart the browser.
+    """
+    if not driver: return None
+
+    # Use a thread pool with wait=False shutdown so we can abandon hung Selenium threads immediately
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(_fetch_yahoo_selenium_impl, driver, url, log_callback)
+    
+    try:
+        result = future.result(timeout=timeout)
+        executor.shutdown(wait=False)
+        return result
+    except concurrent.futures.TimeoutError:
+        executor.shutdown(wait=False, cancel_futures=True)
+        if log_callback: log_callback(f"│   │   │   └── ❌ HARD TIMEOUT ({timeout}s): Browser thread hung.")
+        raise DeadDriverException(f"Hard Timeout during fetch on {url}")
+    except Exception as e:
+        executor.shutdown(wait=False)
+        raise e
+
+def _fetch_yahoo_selenium_impl(driver, url, log_callback):
     """
     Fetches Yahoo content using a REAL BROWSER to render JavaScript.
     """
