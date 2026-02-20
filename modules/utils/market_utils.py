@@ -172,30 +172,39 @@ class DeadDriverException(Exception):
 class BlockedContentException(Exception):
     pass
 
-import concurrent.futures
+import threading
 
 def fetch_yahoo_selenium(driver, url, log_callback, timeout=20):
     """
     Wraps the Yahoo fetch logic in a hard timeout to prevent Selenium from hanging indefinitely.
     If it hangs, it raises DeadDriverException so the engine can force-quit and restart the browser.
+    Uses daemon=True threads so a hung Selenium fetch won't prevent the Python process from shutting down.
     """
     if not driver: return None
 
-    # Use a thread pool with wait=False shutdown so we can abandon hung Selenium threads immediately
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(_fetch_yahoo_selenium_impl, driver, url, log_callback)
+    result_container = []
+    exception_container = []
+
+    def worker():
+        try:
+            res = _fetch_yahoo_selenium_impl(driver, url, log_callback)
+            result_container.append(res)
+        except Exception as e:
+            exception_container.append(e)
+
+    # Daemon threads are abandoned automatically when the main process exits
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+    t.join(timeout)
     
-    try:
-        result = future.result(timeout=timeout)
-        executor.shutdown(wait=False)
-        return result
-    except concurrent.futures.TimeoutError:
-        executor.shutdown(wait=False, cancel_futures=True)
+    if t.is_alive():
         if log_callback: log_callback(f"│   │   │   └── ❌ HARD TIMEOUT ({timeout}s): Browser thread hung.")
         raise DeadDriverException(f"Hard Timeout during fetch on {url}")
-    except Exception as e:
-        executor.shutdown(wait=False)
-        raise e
+        
+    if exception_container:
+        raise exception_container[0]
+        
+    return result_container[0] if result_container else None
 
 def _fetch_yahoo_selenium_impl(driver, url, log_callback):
     """
