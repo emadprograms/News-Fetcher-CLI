@@ -111,7 +111,12 @@ class CalendarPopulator:
                 dt_obj = datetime.datetime.strptime(date_raw, "%d/%m/%Y").date()
                 date_iso = dt_obj.strftime("%Y-%m-%d")
 
-                importance = row['importance'].upper() if row['importance'] else "LOW"
+                # Handle missing importance efficiently (pandas sometimes returns NaN which is a float)
+                raw_importance = row['importance']
+                if not isinstance(raw_importance, str) or not raw_importance:
+                    importance = "LOW"
+                else:
+                    importance = str(raw_importance).upper()
                 
                 # Deduplicate
                 sig = (event_name, date_iso)
