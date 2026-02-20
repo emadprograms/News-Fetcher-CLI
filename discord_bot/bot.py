@@ -55,22 +55,27 @@ async def trigger_fetch(ctx):
                     await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is initializing... Fetching live link... 📡")
                     print(f"Triggered fetch via Discord user: {ctx.author}")
                     
-                    # Wait for GitHub to register the new run (increased to 5s)
-                    await asyncio.sleep(5)
-                    
-                    # Fetch the most recent run for this workflow
-                    runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/runs"
-                    async with session.get(runs_url, headers=headers) as runs_resp:
-                        if runs_resp.status == 200:
-                            runs_data = await runs_resp.json()
-                            if runs_data.get("workflow_runs"):
-                                live_url = runs_data["workflow_runs"][0]["html_url"]
-                                await status_msg.edit(content=f"💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub]({live_url})**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                    # Try up to 3 times with 4s wait each (total 12s)
+                    live_url = None
+                    for attempt in range(1, 4):
+                        await asyncio.sleep(4)
+                        print(f"Attempt {attempt} to fetch live link...")
+                        
+                        runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/runs"
+                        async with session.get(runs_url, headers=headers) as runs_resp:
+                            if runs_resp.status == 200:
+                                runs_data = await runs_resp.json()
+                                if runs_data.get("workflow_runs"):
+                                    live_url = runs_data["workflow_runs"][0]["html_url"]
+                                    break
                             else:
-                                await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link pending: 0 runs found)\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
-                        else:
-                             print(f"Failed to fetch runs: {runs_resp.status}")
-                             await status_msg.edit(content=f"💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link unavailable: Error {runs_resp.status})\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                                print(f"Failed to fetch runs on attempt {attempt}: {runs_resp.status}")
+                    
+                    if live_url:
+                        await status_msg.edit(content=f"💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub]({live_url})**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                        print(f"Triggered fetch via Discord user: {ctx.author}")
+                    else:
+                        await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link could not be retrieved - check GitHub Actions manually)\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                 else:
                     response_json = await response.json() if response.content_type == 'application/json' else {}
                     error_details = response_json.get("message", await response.text())
