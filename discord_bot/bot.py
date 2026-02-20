@@ -2,6 +2,7 @@ import os
 import discord
 from discord.ext import commands
 import aiohttp
+import asyncio
 from dotenv import load_dotenv
 
 # Load local environment variables if present
@@ -51,8 +52,24 @@ async def trigger_fetch(ctx):
             async with session.post(url, headers=headers, json=data) as response:
                 # GitHub returns 204 No Content on a successful dispatch
                 if response.status == 204:
-                    await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                    await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is initializing... Fetching live link... 📡")
                     print(f"Triggered fetch via Discord user: {ctx.author}")
+                    
+                    # Wait for GitHub to register the new run
+                    await asyncio.sleep(3)
+                    
+                    # Fetch the most recent run for this workflow
+                    runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/runs"
+                    async with session.get(runs_url, headers=headers) as runs_resp:
+                        if runs_resp.status == 200:
+                            runs_data = await runs_resp.json()
+                            if runs_data.get("workflow_runs"):
+                                live_url = runs_data["workflow_runs"][0]["html_url"]
+                                await status_msg.edit(content=f"💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub]({live_url})**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                            else:
+                                await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link pending...)\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                        else:
+                             await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner.\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                 else:
                     response_json = await response.json() if response.content_type == 'application/json' else {}
                     error_details = response_json.get("message", await response.text())
