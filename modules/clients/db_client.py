@@ -382,6 +382,21 @@ class NewsDatabase:
             print(f"⚠️ Fetch Range Error: {e}")
             return []
 
+    def count_news_range(self, start_iso, end_iso):
+        """
+        Efficiently counts news items between two ISO timestamps.
+        """
+        if not self.client: return 0
+        sql = "SELECT COUNT(id) FROM market_news WHERE published_at >= ? AND published_at <= ?"
+        try:
+            rs = self.client.execute(sql, [start_iso, end_iso])
+            if rs.rows:
+                return rs.rows[0][0]
+            return 0
+        except Exception as e:
+            print(f"⚠️ Count Range Error: {e}")
+            return 0
+
     # --- CALENDAR METHODS ---
     def clear_calendar(self):
         """ Clears all upcoming events to allow a fresh sync. """

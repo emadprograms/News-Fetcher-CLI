@@ -100,12 +100,12 @@ def build_discord_report(target_date, report, duration_sec):
     lines.append(f"  🌍 Macro News: **{macro}** articles")
     lines.append(f"  📈 Stocks News: **{stocks}** articles")
     lines.append(f"  🏢 Company News: **{company}** articles")
-    lines.append(f"  📰 **New Today: {total} articles**")
+    lines.append(f"  📰 **New in this Hunt: {total} articles**")
     
-    # Total in DB for the day
+    # Total in DB for session
     total_db = report.get("total_in_db", 0)
     if total_db > 0:
-        lines.append(f"  🗄️ **Total in DB for {target_date}: {total_db} articles**")
+        lines.append(f"  🗄️ **Total in Trading Session Window: {total_db} articles**")
     
     # Calendar
     cal_events = report.get("calendar_events", 0)
@@ -235,10 +235,7 @@ def run_automation():
     # 2. Run Macro Scan
     try:
         update_log("🌍 Starting Macro Scan...")
-        before = count_articles_for_date(db, target_date)
-        existing_titles = db.fetch_existing_titles(target_date)
-        cache = db.fetch_cache_map(target_date, None)
-        macro_engine.run_macro_scan(
+        macro_results = macro_engine.run_macro_scan(
             target_date, 
             max_pages=5, 
             log_callback=update_log, 
@@ -249,8 +246,7 @@ def run_automation():
             lookback_start=lookback_start,
             lookback_end=lookback_end
         )
-        after = count_articles_for_date(db, target_date)
-        report["macro"] = max(0, after - before)
+        report["macro"] = len(macro_results) if macro_results else 0
         update_log(f"✅ Macro Scan Complete. {report['macro']} new articles.")
     except Exception as e:
         update_log(f"❌ Macro Scan Failed: {e}")
@@ -259,10 +255,9 @@ def run_automation():
     # 3. Run Stocks Scan
     try:
         update_log("📈 Starting Stocks Scan...")
-        before = count_articles_for_date(db, target_date)
         existing_titles = db.fetch_existing_titles(target_date)
         cache = db.fetch_cache_map(target_date, None)
-        stocks_engine.run_stocks_scan(
+        stocks_results = stocks_engine.run_stocks_scan(
             target_date, 
             max_pages=5, 
             log_callback=update_log, 
@@ -273,8 +268,7 @@ def run_automation():
             lookback_start=lookback_start,
             lookback_end=lookback_end
         )
-        after = count_articles_for_date(db, target_date)
-        report["stocks"] = max(0, after - before)
+        report["stocks"] = len(stocks_results) if stocks_results else 0
         update_log(f"✅ Stocks Scan Complete. {report['stocks']} new articles.")
     except Exception as e:
         update_log(f"❌ Stocks Scan Failed: {e}")
@@ -300,10 +294,7 @@ def run_automation():
                 update_log("ℹ️ No monitored tickers found in Analyst DB.")
                 report["errors"].append("No monitored tickers in Analyst DB for MarketAux scan")
             else:
-                before = count_articles_for_date(db, target_date)
-                existing_titles = db.fetch_existing_titles(target_date)
-                cache = db.fetch_cache_map(target_date, None)
-                marketaux_engine.run_marketaux_scan(
+                ma_results = marketaux_engine.run_marketaux_scan(
                     ma_keys, 
                     target_date, 
                     tickers, 
@@ -315,16 +306,17 @@ def run_automation():
                     lookback_start=lookback_start,
                     lookback_end=lookback_end
                 )
-                after = count_articles_for_date(db, target_date)
-                report["company"] = max(0, after - before)
+                report["company"] = len(ma_results) if ma_results else 0
                 update_log(f"✅ Company Scan Complete. {report['company']} new articles.")
     except Exception as e:
         update_log(f"❌ Company Scan Failed: {e}")
         report["errors"].append(f"Company scan crashed: {e}")
 
-    # Final count: total articles in DB for today
-    report["total_in_db"] = count_articles_for_date(db, target_date)
-    update_log(f"📦 Total articles in DB for {target_date}: {report['total_in_db']}")
+    # Final count: total articles in session window
+    iso_start = lookback_start.isoformat()
+    iso_end = lookback_end.isoformat()
+    report["total_in_db"] = db.count_news_range(iso_start, iso_end)
+    update_log(f"📦 Total articles in session window: {report['total_in_db']}")
 
     # Final Report
     duration = time.time() - start_time
