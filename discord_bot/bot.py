@@ -51,7 +51,7 @@ async def trigger_fetch(ctx):
             async with session.post(url, headers=headers, json=data) as response:
                 # GitHub returns 204 No Content on a successful dispatch
                 if response.status == 204:
-                    await status_msg.edit(content="💠 **Transmission Successful!**\n> **News-Fetcher** is now initializing the harvest runner. The final report will be delivered here momentarily. 📰")
+                    await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                     print(f"Triggered fetch via Discord user: {ctx.author}")
                 else:
                     response_json = await response.json() if response.content_type == 'application/json' else {}
