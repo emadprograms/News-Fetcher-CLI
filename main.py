@@ -143,7 +143,7 @@ def run_automation():
     
     # 🕒 REF-LOGIC: MARKET-CENTRIC TRADING SESSIONS
     # ------------------------------------------------------------------
-    # Anchor: 1 AM UTC | Switch-over: 9 AM UTC (Pre-market)
+    # Anchor: 1 AM UTC | Switch-over: DST-aware (8 AM or 9 AM UTC)
     # Weekends/Holidays: Treated as extensions of the last Trading Day.
     # ------------------------------------------------------------------
     
@@ -153,31 +153,29 @@ def run_automation():
     # 1. Identify the 'Logical' Trading Session we are dealing with
     current_market_day = market_utils.MarketCalendar.get_current_or_prev_trading_day(today_utc)
     
-    # 2. Determine if we shift focus
-    # Rule: On a Trading Day, we switch to Today's session only after 9 AM UTC.
-    is_early_trading_day = (today_utc == current_market_day and now_utc.hour < 9)
+    # 2. DST-Aware Pre-market Switch Hour
+    switch_hour = market_utils.MarketCalendar.get_premarket_switch_hour_utc(today_utc)
+    
+    # 3. Determine if we shift focus
+    is_early_trading_day = (today_utc == current_market_day and now_utc.hour < switch_hour)
     
     if is_early_trading_day:
-        # Before 9 AM on a Trading Day: Finish the PREVIOUS session
+        # Before pre-market on a Trading Day: Finalize the PREVIOUS session
         target_date = market_utils.MarketCalendar.get_prev_trading_day(current_market_day)
         lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-        # Finalize strictly at the start of the next (which is 'current') session
         lookback_end = datetime.datetime.combine(current_market_day, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
     else:
-        # After 9 AM or on a Weekend/Holiday: Focus on the CURRENT/LATEST session
+        # After pre-market or on a Weekend/Holiday: Focus on the CURRENT/LATEST session
         target_date = current_market_day
         lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-        
-        # Determine End
-        if today_utc == current_market_day:
-            # Active Trading Day: Rolling window
-            lookback_end = now_utc
-        else:
-            # Weekend/Holiday: Still focused on last Trading Day, but capture everything since 1 AM then
-            lookback_end = now_utc
+        lookback_end = now_utc
             
-    update_log(f"⏰ TRADING DATE FOCUS: {target_date}")
+    update_log(f"⏰ TRADING DATE FOCUS: {target_date} (Switch Hour: {switch_hour}:00 UTC)")
     update_log(f"⏰ LOOKBACK WINDOW (UTC): {lookback_start.strftime('%Y-%m-%d %H:%M')} -> {lookback_end.strftime('%Y-%m-%d %H:%M')}")
+    
+    # Early Close info
+    if market_utils.MarketCalendar.is_early_close(target_date):
+        update_log(f"⚠️ NOTE: {target_date} is an NYSE Early Close day (1 PM EST).")
     
     # Report tracker
     report = {
@@ -247,6 +245,11 @@ def run_automation():
     # 2. Run Macro Scan
     try:
         update_log("🌍 Starting Macro Scan...")
+        # Range-based dedup: covers entire session window (critical for weekend leaps)
+        iso_start = lookback_start.isoformat()
+        iso_end = lookback_end.isoformat()
+        existing_titles = db.fetch_existing_titles_range(iso_start, iso_end)
+        cache = db.fetch_cache_map(target_date, None)
         macro_results = macro_engine.run_macro_scan(
             target_date, 
             max_pages=5, 
@@ -256,7 +259,8 @@ def run_automation():
             existing_titles=existing_titles,
             headless=True,
             lookback_start=lookback_start,
-            lookback_end=lookback_end
+            lookback_end=lookback_end,
+            trading_session_date=target_date
         )
         report["macro"] = len(macro_results) if macro_results else 0
         update_log(f"✅ Macro Scan Complete. {report['macro']} new articles.")
@@ -267,7 +271,8 @@ def run_automation():
     # 3. Run Stocks Scan
     try:
         update_log("📈 Starting Stocks Scan...")
-        existing_titles = db.fetch_existing_titles(target_date)
+        # Refresh dedup context (macro may have added articles)
+        existing_titles = db.fetch_existing_titles_range(iso_start, iso_end)
         cache = db.fetch_cache_map(target_date, None)
         stocks_results = stocks_engine.run_stocks_scan(
             target_date, 
@@ -278,7 +283,8 @@ def run_automation():
             existing_titles=existing_titles,
             headless=True,
             lookback_start=lookback_start,
-            lookback_end=lookback_end
+            lookback_end=lookback_end,
+            trading_session_date=target_date
         )
         report["stocks"] = len(stocks_results) if stocks_results else 0
         update_log(f"✅ Stocks Scan Complete. {report['stocks']} new articles.")
@@ -316,7 +322,8 @@ def run_automation():
                     existing_titles=existing_titles,
                     headless=True,
                     lookback_start=lookback_start,
-                    lookback_end=lookback_end
+                    lookback_end=lookback_end,
+                    trading_session_date=target_date
                 )
                 report["company"] = len(ma_results) if ma_results else 0
                 update_log(f"✅ Company Scan Complete. {report['company']} new articles.")

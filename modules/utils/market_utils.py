@@ -427,9 +427,9 @@ def parse_iso_datetime(iso_str):
 
 class MarketCalendar:
     """
-    Utility for NYSE Trading Days and Market Sessions.
+    Utility for NYSE Trading Days, Market Sessions, and DST-aware switchovers.
     """
-    # NYSE Holidays for 2026
+    # NYSE Full-Day Holidays for 2026
     HOLIDAYS_2026 = {
         datetime.date(2026, 1, 1),   # New Year's Day
         datetime.date(2026, 1, 19),  # MLK Jr. Day
@@ -443,6 +443,35 @@ class MarketCalendar:
         datetime.date(2026, 12, 25), # Christmas
     }
 
+    # NYSE Early Close Days (1 PM EST / 6 PM UTC or 5 PM UTC in DST)
+    EARLY_CLOSE_2026 = {
+        datetime.date(2026, 7, 2),   # Day Before Independence Day
+        datetime.date(2026, 11, 27), # Day After Thanksgiving
+        datetime.date(2026, 12, 24), # Christmas Eve
+    }
+
+    # --- DST BOUNDARIES (US Eastern) ---
+    # 2026: DST starts Mar 8, ends Nov 1
+    # Pre-market opens at 4 AM EST = 9 AM UTC (Standard) / 8 AM UTC (Daylight)
+    DST_START_2026 = datetime.date(2026, 3, 8)
+    DST_END_2026 = datetime.date(2026, 11, 1)
+
+    @staticmethod
+    def is_us_dst(dt):
+        """ Returns True if the given date falls within US Daylight Saving Time. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        return MarketCalendar.DST_START_2026 <= dt < MarketCalendar.DST_END_2026
+
+    @staticmethod
+    def get_premarket_switch_hour_utc(dt):
+        """
+        Returns the UTC hour at which pre-market opens (focus switch).
+        Standard Time: 9 AM UTC (4 AM EST)
+        Daylight Time: 8 AM UTC (4 AM EDT)
+        """
+        return 8 if MarketCalendar.is_us_dst(dt) else 9
+
     @staticmethod
     def is_trading_day(dt):
         """ Checks if a given date is a NYSE trading day. """
@@ -453,6 +482,13 @@ class MarketCalendar:
         if dt in MarketCalendar.HOLIDAYS_2026:
             return False
         return True
+
+    @staticmethod
+    def is_early_close(dt):
+        """ Returns True if the given date is an NYSE early close day. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        return dt in MarketCalendar.EARLY_CLOSE_2026
 
     @staticmethod
     def get_prev_trading_day(dt):

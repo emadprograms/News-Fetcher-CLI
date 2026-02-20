@@ -67,6 +67,7 @@ class NewsDatabase:
             eps_estimate TEXT,
             eps_reported TEXT,
             eps_surprise TEXT,
+            trading_session_date TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         """
@@ -74,8 +75,20 @@ class NewsDatabase:
             self.client.execute(sql_create)
             # Index on Category/Date for speed
             self.client.execute("CREATE INDEX IF NOT EXISTS idx_cat_date ON market_news(category, published_at);")
+            self.client.execute("CREATE INDEX IF NOT EXISTS idx_session_date ON market_news(trading_session_date);")
         except Exception as e:
             print(f"❌ Schema Init Error: {e}")
+
+        # Migration: Add trading_session_date column if missing
+        try:
+            self.client.execute("SELECT trading_session_date FROM market_news LIMIT 1")
+        except:
+            print("📦 Migrating Schema: Adding 'trading_session_date' to market_news...")
+            try:
+                self.client.execute("ALTER TABLE market_news ADD COLUMN trading_session_date TEXT")
+                self.client.execute("CREATE INDEX IF NOT EXISTS idx_session_date ON market_news(trading_session_date);")
+            except Exception as e:
+                print(f"⚠️ Schema Migration (trading_session_date) Error: {e}")
 
         # 3. Create Calendar Table
         sql_create_cal = """
@@ -117,9 +130,10 @@ class NewsDatabase:
             print(f"⚠️ Fetch Tickers Error: {e}")
             return []
 
-    def insert_news(self, news_list, category):
+    def insert_news(self, news_list, category, trading_session_date=None):
         """
         Inserts a list of news dictionaries into the DB.
+        trading_session_date: The logical NYSE trading session this news belongs to (YYYY-MM-DD).
         Returns (inserted_count, duplicate_count)
         """
         if not self.client or not news_list:
@@ -128,10 +142,12 @@ class NewsDatabase:
         inserted = 0
         duplicates = 0
         
+        session_str = trading_session_date.strftime("%Y-%m-%d") if trading_session_date else None
+        
         sql = """
         INSERT OR IGNORE INTO market_news 
-        (published_at, title, url, source_domain, publisher, category, content) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (published_at, title, url, source_domain, publisher, category, content, trading_session_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         for item in news_list:
@@ -153,10 +169,9 @@ class NewsDatabase:
                     content_str = str(content_list)
 
                 # Execute
-                rs = self.client.execute(sql, [pub_at, title, url, domain, publisher, item_cat, content_str])
+                rs = self.client.execute(sql, [pub_at, title, url, domain, publisher, item_cat, content_str, session_str])
                 
                 # Check if inserted (rows_affected)
-                # Libsql might return rowcount differently, but OR IGNORE usually means 0 rows if dupe
                 if rs.rows_affected > 0:
                     inserted += 1
                 else:
@@ -169,7 +184,7 @@ class NewsDatabase:
         try:
             self.client.commit()
         except:
-            pass # Sync client might auto-commit or not have method, but harmless to try
+            pass
             
         return inserted, duplicates
 
@@ -285,6 +300,25 @@ class NewsDatabase:
             return titles_map
         except Exception as e:
             print(f"⚠️ Fetch Existing Titles Error: {e}")
+            return {}
+
+    def fetch_existing_titles_range(self, start_iso, end_iso):
+        """
+        Range-based deduplication: Returns {normalized_title: id} for all articles
+        whose published_at falls between start_iso and end_iso.
+        This is critical for weekend/holiday leaps where a session spans multiple calendar days.
+        """
+        if not self.client: return {}
+        try:
+            sql = "SELECT id, title FROM market_news WHERE published_at >= ? AND published_at <= ?"
+            rs = self.client.execute(sql, [start_iso, end_iso])
+            titles_map = {}
+            for row in rs.rows:
+                norm_t = market_utils.normalize_title(row[1]).lower()
+                titles_map[norm_t] = row[0]
+            return titles_map
+        except Exception as e:
+            print(f"⚠️ Fetch Existing Titles (Range) Error: {e}")
             return {}
 
     def fetch_recent_news(self, limit=50):

@@ -24,7 +24,7 @@ class MarketAuxEngine:
         self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
         return key
 
-    def run_company_scan(self, target_date, ticker_list, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None, lookback_end=None):
+    def run_company_scan(self, target_date, ticker_list, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None, lookback_end=None, trading_session_date=None):
         """
         Main Execution Method (Incremental/Safe Mode).
         1. For each ticker:
@@ -299,7 +299,7 @@ class MarketAuxEngine:
                         
                         # 💾 IMMEDIATE SAVE (Per Article)
                         if db:
-                            inserted_count, dups_count = db.insert_news([report], "COMPANY")
+                            inserted_count, dups_count = db.insert_news([report], "COMPANY", trading_session_date=trading_session_date)
                             if inserted_count > 0:
                                 self.log_callback(f"│   │   └── 💾 SAVED to DB immediately.")
                             elif dups_count > 0:
@@ -475,6 +475,6 @@ class MarketAuxEngine:
             
         return articles
 
-def run_marketaux_scan(api_keys, target_date, ticker_list, log_callback, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None, lookback_end=None):
+def run_marketaux_scan(api_keys, target_date, ticker_list, log_callback, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None, lookback_end=None, trading_session_date=None):
     engine = MarketAuxEngine(api_keys, log_callback)
-    return engine.run_company_scan(target_date, ticker_list, db, cache_map, existing_titles, headless=headless, lookback_start=lookback_start, lookback_end=lookback_end)
+    return engine.run_company_scan(target_date, ticker_list, db, cache_map, existing_titles, headless=headless, lookback_start=lookback_start, lookback_end=lookback_end, trading_session_date=trading_session_date)

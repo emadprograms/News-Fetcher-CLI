@@ -1,5 +1,5 @@
 {
-    "active_scan": true,
+    "active_scan": false,
     "scan_type": "STOCKS",
     "target_date": "2026-02-20",
     "start_time": "2026-02-20 14:42:44.073123",
@@ -15,7 +15,23 @@
     "completed_targets": [
         "AAPL",
         "ADBE",
-        "AMD"
+        "AMD",
+        "AMZN",
+        "APP",
+        "AVGO",
+        "BABA",
+        "GOOGL",
+        "LRCX",
+        "META",
+        "MSFT",
+        "MU",
+        "NVDA",
+        "ORCL",
+        "PANW",
+        "QCOM",
+        "SHOP",
+        "TSLA",
+        "TSM"
     ],
-    "current_target": "AMZN"
+    "current_target": null
 }

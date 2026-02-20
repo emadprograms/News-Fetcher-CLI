@@ -137,7 +137,7 @@ def generate_event_feeds(db):
         print(f"⚠️ Event Feed Gen Error: {e}")
         return []
 
-def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, manual_event_feeds=None, headless=False, lookback_start=None, lookback_end=None):
+def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, manual_event_feeds=None, headless=False, lookback_start=None, lookback_end=None, trading_session_date=None):
     """
     The Yahoo Macro Hunter (Selenium Edition).
     Fetches Economy, Energy, and Geo news from Yahoo Finance.
@@ -501,7 +501,7 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                         
                         # 💾 INCREMENTAL SAVE
                         if db:
-                            inserted_count, dups_count = db.insert_news([report_item], category_tag)
+                            inserted_count, dups_count = db.insert_news([report_item], category_tag, trading_session_date=trading_session_date)
                             if inserted_count > 0:
                                 log_callback(f"│   │   └── 💾 SAVED to DB immediately.")
                             elif dups_count > 0:

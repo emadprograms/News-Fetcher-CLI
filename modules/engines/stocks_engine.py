@@ -56,7 +56,7 @@ YAHOO_RSS_TARGETS = [
 
 
 
-def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, headless=False, lookback_start=None, lookback_end=None):
+def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, headless=False, lookback_start=None, lookback_end=None, trading_session_date=None):
     """
     Main entry point for Stocks Scan.
     scans YAHOO_RSS_TARGETS for news.
@@ -357,7 +357,7 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                         # 💾 INCREMENTAL SAVE
                         # 💾 INCREMENTAL SAVE
                         if db:
-                            inserted_count, dups_count = db.insert_news([report_item], category_tag)
+                            inserted_count, dups_count = db.insert_news([report_item], category_tag, trading_session_date=trading_session_date)
                             if inserted_count > 0:
                                 log_callback(f"│   │   └── 💾 SAVED to DB immediately.")
                             elif dups_count > 0:
@@ -425,7 +425,7 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
 
     return found_reports
 
-def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, lookback_start=None, lookback_end=None):
+def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, lookback_start=None, lookback_end=None, trading_session_date=None):
     """
     Company Specific Hunter (Yahoo Finance).
     Fetches news for a specific list of tickers.
@@ -681,7 +681,7 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
                             
                             # 💾 INCREMENTAL SAVE
                             if db:
-                                inserted_count, dups_count = db.insert_news([report_item], ticker)
+                                inserted_count, dups_count = db.insert_news([report_item], ticker, trading_session_date=trading_session_date)
                                 if inserted_count > 0:
                                     log_callback(f"│   │   └── 💾 SAVED to DB immediately.")
                                 elif dups_count > 0:
