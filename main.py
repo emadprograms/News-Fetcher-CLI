@@ -171,25 +171,42 @@ def run_automation(run_number=1, max_runs=3):
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     today_utc = now_utc.date()
     
-    # 1. Identify the 'Logical' Trading Session we are dealing with
-    current_market_day = market_utils.MarketCalendar.get_current_or_prev_trading_day(today_utc)
+    # Handle optional manual date override (from GitHub Actions)
+    manual_date_str = os.environ.get("TARGET_DATE", "").strip()
     
-    # 2. DST-Aware Pre-market Switch Hour
-    switch_hour = market_utils.MarketCalendar.get_premarket_switch_hour_utc(today_utc)
-    
-    # 3. Determine if we shift focus
-    is_early_trading_day = (today_utc == current_market_day and now_utc.hour < switch_hour)
-    
-    if is_early_trading_day:
-        # Before pre-market on a Trading Day: Finalize the PREVIOUS session
-        target_date = market_utils.MarketCalendar.get_prev_trading_day(current_market_day)
-        lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-        lookback_end = datetime.datetime.combine(current_market_day, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-    else:
-        # After pre-market or on a Weekend/Holiday: Focus on the CURRENT/LATEST session
-        target_date = current_market_day
-        lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
-        lookback_end = now_utc
+    if manual_date_str:
+        try:
+            target_date = datetime.datetime.strptime(manual_date_str, "%Y-%m-%d").date()
+            update_log(f"⚠️ MANUAL DATE OVERRIDE DETECTED: {target_date}")
+            lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+            # End is exactly 24 hours later, capped at current time
+            raw_end = datetime.datetime.combine(target_date + datetime.timedelta(days=1), datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+            lookback_end = min(raw_end, now_utc)
+            switch_hour = market_utils.MarketCalendar.get_premarket_switch_hour_utc(target_date)
+        except ValueError:
+            update_log(f"❌ Invalid TARGET_DATE format '{manual_date_str}'. Falling back to automatic logic.")
+            manual_date_str = None
+            
+    if not manual_date_str:
+        # 1. Identify the 'Logical' Trading Session we are dealing with
+        current_market_day = market_utils.MarketCalendar.get_current_or_prev_trading_day(today_utc)
+        
+        # 2. DST-Aware Pre-market Switch Hour
+        switch_hour = market_utils.MarketCalendar.get_premarket_switch_hour_utc(today_utc)
+        
+        # 3. Determine if we shift focus
+        is_early_trading_day = (today_utc == current_market_day and now_utc.hour < switch_hour)
+        
+        if is_early_trading_day:
+            # Before pre-market on a Trading Day: Finalize the PREVIOUS session
+            target_date = market_utils.MarketCalendar.get_prev_trading_day(current_market_day)
+            lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+            lookback_end = datetime.datetime.combine(current_market_day, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+        else:
+            # After pre-market or on a Weekend/Holiday: Focus on the CURRENT/LATEST session
+            target_date = current_market_day
+            lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+            lookback_end = now_utc
             
     update_log(f"⏰ TRADING DATE FOCUS: {target_date} (Switch Hour: {switch_hour}:00 UTC)")
     update_log(f"⏰ LOOKBACK WINDOW (UTC): {lookback_start.strftime('%Y-%m-%d %H:%M')} -> {lookback_end.strftime('%Y-%m-%d %H:%M')}")
