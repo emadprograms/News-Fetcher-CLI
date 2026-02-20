@@ -43,11 +43,8 @@ def force_quit_driver(driver):
         pid = driver.service.process.pid
         if pid:
             os.kill(pid, signal.SIGTERM) # Try polite kill first
-            # time.sleep(1) 
-            # os.kill(pid, signal.SIGKILL) # Force kill if needed (optional)
             print(f"🔨 Force Killed Driver PID: {pid}")
     except Exception as e:
-        # print(f"⚠️ PID Kill failed (already dead?): {e}")
         pass
 
 def is_premium_source(title, url):
@@ -175,14 +172,12 @@ class DeadDriverException(Exception):
 class BlockedContentException(Exception):
     pass
 
-def fetch_yahoo_selenium(driver, url, log_callback, allow_sources=None):
+def fetch_yahoo_selenium(driver, url, log_callback):
     """
     Fetches Yahoo content using a REAL BROWSER to render JavaScript.
-    allow_sources: List of uppercase strings (e.g. ["ZACKS"]) to bypass the blocklist.
     """
     try:
         # 0. DOMAIN VALIDATION (No International Yahoo)
-        from urllib.parse import urlparse
         import urllib3
         import socket
         
@@ -398,16 +393,13 @@ def fetch_yahoo_selenium(driver, url, log_callback, allow_sources=None):
         
         # 1. BLOCKLIST (Noise Filters)
         # Uses Global BLOCKED_SOURCES defined at top of file
-        # Check if explicitly allowed (Whitelisted for this specific run)
-
         if pub_upper in BLOCKED_SOURCES:
-                if log_callback: log_callback(f"│   │   │   └── 🛑 BLOCKED Source: {publisher}")
-                raise BlockedContentException(f"Blocked Source: {publisher}")
+            if log_callback: log_callback(f"│   │   │   └── 🛑 BLOCKED Source: {publisher}")
+            raise BlockedContentException(f"Blocked Source: {publisher}")
         
         # 2. PRIORITIZATION (Quality Highlight)
-        PRIORITY_SOURCES = ["REUTERS", "BLOOMBERG", "CNBC"]
         is_priority = False
-        for good_src in PRIORITY_SOURCES:
+        for good_src in PREMIUM_SOURCES:
             if good_src in pub_upper:
                 publisher = f"⭐ {publisher}" # Visual Tag
                 is_priority = True

@@ -3,7 +3,7 @@ import requests
 import investpy # 🚀 Using InvestPy as requested
 from bs4 import BeautifulSoup
 import time
-from modules.utils.market_utils import get_selenium_driver # Reuse existing driver factory
+
 import datetime
 from dateutil import parser
 from . import db_client
@@ -42,9 +42,7 @@ MEGA_CAP_TICKERS = {
 ECO_CALENDAR_URL = "https://finance.yahoo.com/calendar/economic"
 EARNINGS_CALENDAR_URL = "https://finance.yahoo.com/calendar/earnings"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+from modules.utils.market_utils import get_selenium_driver, HEADERS # Reuse existing driver factory and headers
 
 class CalendarPopulator:
     def __init__(self, db: db_client.NewsDatabase, analyst_db=None):

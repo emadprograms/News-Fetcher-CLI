@@ -285,10 +285,8 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                     for attempt in range(max_attempts):
                         try:
                             # DYNAMIC ALLOW LIST
-                            allow_sources = []
-                            # if "EVENT_WATCH" in category_tag: ... 
 
-                            content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback, allow_sources=allow_sources)
+                            content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback)
                             if content:
                                 url_valid = True
                                 break # Success!
@@ -617,11 +615,8 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
                     for attempt in range(max_attempts):
                         try:
                             # DYNAMIC ALLOW LIST
-                            allow_sources = []
-                            if "EVENT_WATCH" in category_tag: # Or whatever tag you use for events
-                                allow_sources = ["ZACKS"]
 
-                            content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback, allow_sources=allow_sources)
+                            content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback)
                             if content:
                                 url_valid = True
                                 break

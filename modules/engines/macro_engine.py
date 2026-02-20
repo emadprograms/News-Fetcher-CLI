@@ -427,11 +427,8 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                     for attempt in range(max_attempts):
                         try:
                             # DYNAMIC ALLOW LIST
-                            allow_sources = []
-                            if category_tag == "EVENT_WATCH":
-                                allow_sources = ["ZACKS"]
 
-                            content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback, allow_sources=allow_sources)
+                            content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback)
                             if content:
                                 break # Success
                         except market_utils.DeadDriverException:

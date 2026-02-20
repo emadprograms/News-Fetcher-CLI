@@ -75,14 +75,6 @@ def send_discord_report(webhook_url, message, embeds=None):
     except Exception as e:
         update_log(f"⚠️ Discord notification failed: {e}")
 
-def count_articles_for_date(db, target_date):
-    """ Counts total articles stored for a given date. """
-    try:
-        titles = db.fetch_existing_titles(target_date)
-        return len(titles) if titles else 0
-    except:
-        return 0
-
 def build_discord_report(target_date, report, duration_sec, run_number=1, max_runs=3):
     """
     Builds a rich Discord embed with categorized alerting.

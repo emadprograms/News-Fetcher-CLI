@@ -135,17 +135,6 @@ class InfisicalManager:
 
         return list(set(keys)) # Dedup just in case
 
-    def get_openrouter_key(self):
-        """
-        Fetches the OpenRouter API Key.
-        """
-        return self.get_secret("openrouter_ai_models_API_KEY")
-
-    def get_stock_news_key(self):
-        """
-        Fetches the Stock News API Key.
-        """
-        return self.get_secret("massive_stock_data_API_KEY")
 
     def get_discord_webhook(self):
         """
