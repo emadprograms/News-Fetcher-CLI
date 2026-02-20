@@ -75,7 +75,6 @@ class NewsDatabase:
             self.client.execute(sql_create)
             # Index on Category/Date for speed
             self.client.execute("CREATE INDEX IF NOT EXISTS idx_cat_date ON market_news(category, published_at);")
-            self.client.execute("CREATE INDEX IF NOT EXISTS idx_session_date ON market_news(trading_session_date);")
         except Exception as e:
             print(f"❌ Schema Init Error: {e}")
 
