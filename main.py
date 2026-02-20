@@ -139,14 +139,33 @@ def build_discord_report(target_date, report, duration_sec):
 
 def run_automation():
     start_time = time.time()
-    update_log("🚀 INITIATING AUTOMATED GRANDMASTER HUNT PROTOCOL (24H SLIDING WINDOW)")
+    update_log("🚀 INITIATING AUTOMATED GRANDMASTER HUNT PROTOCOL (MARKET-CENTRIC DAY)")
     
-    # 🕒 24-HOUR LOOKBACK LOGIC
+    # 🕒 MARKET-CENTRIC DAY LOGIC (1 AM UTC ANCHOR, 9 AM UTC SWITCH)
+    # ------------------------------------------------------------------
+    # 1. News Attribution: Session begins at 1 AM UTC (Post-Market Close).
+    # 2. Focus Switch: We focus on "Yesterday" until 9 AM UTC (Pre-market Open).
+    # 3. Hard Cutoff: Running before 9 AM UTC enforces a strict 24H block.
+    # ------------------------------------------------------------------
+    
     now_utc = datetime.datetime.now(datetime.timezone.utc)
-    lookback_start = now_utc - datetime.timedelta(hours=24)
-    target_date = now_utc.date() # Primary date remains today for reporting
     
-    update_log(f"⏰ LOOKBACK RANGE (UTC): {lookback_start.strftime('%Y-%m-%d %H:%M')} -> {now_utc.strftime('%Y-%m-%d %H:%M')}")
+    # DETERMINE TARGET DATE (What session are we reporting on?)
+    if now_utc.hour < 9:
+        # Before 9 AM UTC: Focus on the trading session that JUST ENDED
+        target_date = (now_utc - datetime.timedelta(days=1)).date()
+        # STRICTOR WINDOW: From 1 AM (Yesterday) to 1 AM (Today)
+        lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+        lookback_end = lookback_start + datetime.timedelta(hours=24)
+    else:
+        # After 9 AM UTC: Focus on the trading session that STARTED TODAY
+        target_date = now_utc.date()
+        # ONGOING WINDOW: From 1 AM (Today) to NOW
+        lookback_start = datetime.datetime.combine(target_date, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+        lookback_end = now_utc
+        
+    update_log(f"⏰ TRADING DATE FOCUS: {target_date}")
+    update_log(f"⏰ LOOKBACK WINDOW (UTC): {lookback_start.strftime('%Y-%m-%d %H:%M')} -> {lookback_end.strftime('%Y-%m-%d %H:%M')}")
     
     # Report tracker
     report = {
@@ -227,7 +246,8 @@ def run_automation():
             cache_map=cache, 
             existing_titles=existing_titles,
             headless=True,
-            lookback_start=lookback_start
+            lookback_start=lookback_start,
+            lookback_end=lookback_end
         )
         after = count_articles_for_date(db, target_date)
         report["macro"] = max(0, after - before)
@@ -250,7 +270,8 @@ def run_automation():
             cache_map=cache, 
             existing_titles=existing_titles,
             headless=True,
-            lookback_start=lookback_start
+            lookback_start=lookback_start,
+            lookback_end=lookback_end
         )
         after = count_articles_for_date(db, target_date)
         report["stocks"] = max(0, after - before)
@@ -291,7 +312,8 @@ def run_automation():
                     cache_map=cache, 
                     existing_titles=existing_titles,
                     headless=True,
-                    lookback_start=lookback_start
+                    lookback_start=lookback_start,
+                    lookback_end=lookback_end
                 )
                 after = count_articles_for_date(db, target_date)
                 report["company"] = max(0, after - before)

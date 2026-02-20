@@ -137,7 +137,7 @@ def generate_event_feeds(db):
         print(f"⚠️ Event Feed Gen Error: {e}")
         return []
 
-def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, manual_event_feeds=None, headless=False, lookback_start=None):
+def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, manual_event_feeds=None, headless=False, lookback_start=None, lookback_end=None):
     """
     The Yahoo Macro Hunter (Selenium Edition).
     Fetches Economy, Energy, and Geo news from Yahoo Finance.
@@ -272,8 +272,13 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                     if lookback_start:
                         if pub_dt < lookback_start:
                             continue
-                    else:
-                        # Fallback to strict date if no lookback_start provided
+                    
+                    if lookback_end:
+                        if pub_dt > lookback_end:
+                            continue
+                            
+                    # Fallback to strict date if no lookback range provided
+                    if not lookback_start and not lookback_end:
                         if pub_date_only != target_date:
                             continue
                     

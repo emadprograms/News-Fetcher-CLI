@@ -56,7 +56,7 @@ YAHOO_RSS_TARGETS = [
 
 
 
-def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, headless=False, lookback_start=None):
+def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, resume_targets=None, target_subset=None, headless=False, lookback_start=None, lookback_end=None):
     """
     Main entry point for Stocks Scan.
     scans YAHOO_RSS_TARGETS for news.
@@ -161,7 +161,12 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                     if lookback_start:
                         if pub_dt < lookback_start:
                             continue
-                    else:
+                            
+                    if lookback_end:
+                        if pub_dt > lookback_end:
+                            continue
+                            
+                    if not lookback_start and not lookback_end:
                         # Fallback to strict date check if no lookback provided
                         if pub_date_only != target_date:
                             continue
@@ -420,7 +425,7 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
 
     return found_reports
 
-def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, lookback_start=None):
+def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, lookback_start=None, lookback_end=None):
     """
     Company Specific Hunter (Yahoo Finance).
     Fetches news for a specific list of tickers.
@@ -509,7 +514,12 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
                     if lookback_start:
                         if pub_dt < lookback_start:
                             continue
-                    else:
+                            
+                    if lookback_end:
+                        if pub_dt > lookback_end:
+                            continue
+                            
+                    if not lookback_start and not lookback_end:
                         # Fallback to strict date check
                         if pub_date_only != target_date:
                             continue

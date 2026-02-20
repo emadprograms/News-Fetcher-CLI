@@ -24,7 +24,7 @@ class MarketAuxEngine:
         self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
         return key
 
-    def run_company_scan(self, target_date, ticker_list, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None):
+    def run_company_scan(self, target_date, ticker_list, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None, lookback_end=None):
         """
         Main Execution Method (Incremental/Safe Mode).
         1. For each ticker:
@@ -95,7 +95,7 @@ class MarketAuxEngine:
                     # --- STEP A: MULTI-LAYER DISCOVERY ---
                     
                     # PROTOCOL 1: Google RSS (Free, Fast)
-                    layer1_items = self._fetch_google_rss(ticker, target_date, seen_titles, lookback_start=lookback_start)
+                    layer1_items = self._fetch_google_rss(ticker, target_date, seen_titles, lookback_start=lookback_start, lookback_end=lookback_end)
                     
                     # PROTOCOL 2: MarketAux API (Paid, Backup)
                     layer2_items = self._fetch_ticker_metadata(ticker, target_date)
@@ -342,7 +342,7 @@ class MarketAuxEngine:
         return all_final_reports
 
 
-    def _fetch_google_rss(self, ticker, target_date, seen_titles, lookback_start=None):
+    def _fetch_google_rss(self, ticker, target_date, seen_titles, lookback_start=None, lookback_end=None):
         """
         Fetches Google RSS for a ticker, checking against seen_titles.
         Handles caching and strict date filtering.
@@ -381,7 +381,12 @@ class MarketAuxEngine:
                     if lookback_start:
                         if pub_dt < lookback_start:
                             continue
-                    else:
+                            
+                    if lookback_end:
+                        if pub_dt > lookback_end:
+                            continue
+                            
+                    if not lookback_start and not lookback_end:
                         if pub_dt.date() != target_date:
                             continue
                 except: continue
@@ -470,6 +475,6 @@ class MarketAuxEngine:
             
         return articles
 
-def run_marketaux_scan(api_keys, target_date, ticker_list, log_callback, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None):
+def run_marketaux_scan(api_keys, target_date, ticker_list, log_callback, db=None, cache_map=None, existing_titles=None, headless=False, lookback_start=None, lookback_end=None):
     engine = MarketAuxEngine(api_keys, log_callback)
-    return engine.run_company_scan(target_date, ticker_list, db, cache_map, existing_titles, headless=headless, lookback_start=lookback_start)
+    return engine.run_company_scan(target_date, ticker_list, db, cache_map, existing_titles, headless=headless, lookback_start=lookback_start, lookback_end=lookback_end)
