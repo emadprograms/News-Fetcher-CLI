@@ -141,6 +141,27 @@ def get_selenium_driver(headless=False):
             raise Exception("❌ Selenium cannot find Chrome. Set CHROME_PATH in market_utils.py.")
         raise e
 
+class ManagedDriver:
+    """
+    Context Manager for Selenium drivers. Guarantees cleanup via force_quit_driver.
+    Usage:
+        with ManagedDriver(headless=True) as driver:
+            driver.get("https://example.com")
+    """
+    def __init__(self, headless=False):
+        self.headless = headless
+        self.driver = None
+
+    def __enter__(self):
+        self.driver = get_selenium_driver(headless=self.headless)
+        return self.driver
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.driver:
+            force_quit_driver(self.driver)
+            self.driver = None
+        return False  # Don't suppress exceptions
+
 def decode_google_news_url(google_url):
     """ 
     LEGACY MODE: Pass-through.

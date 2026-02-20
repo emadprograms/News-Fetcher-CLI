@@ -62,11 +62,14 @@ def cleanup_logs(days_to_keep=7):
     except Exception as e:
         update_log(f"⚠️ Log cleanup failed: {e}")
 
-def send_discord_report(webhook_url, message):
-    """ Sends a notification to Discord. """
+def send_discord_report(webhook_url, message, embeds=None):
+    """ Sends a notification to Discord. Supports rich embeds. """
     if not webhook_url: return
     try:
-        payload = {"content": message}
+        if embeds:
+            payload = {"embeds": embeds}
+        else:
+            payload = {"content": message}
         requests.post(webhook_url, json=payload, timeout=10)
     except Exception as e:
         update_log(f"⚠️ Discord notification failed: {e}")
@@ -79,65 +82,82 @@ def count_articles_for_date(db, target_date):
     except:
         return 0
 
-def build_discord_report(target_date, report, duration_sec):
+def build_discord_report(target_date, report, duration_sec, run_number=1, max_runs=3):
     """
-    Builds a rich Discord message from the scan report dict.
+    Builds a rich Discord embed with categorized alerting.
+    Returns (message_text, embed_list).
     """
-    status_emoji = "✅" if not report["errors"] else "⚠️"
-    
-    lines = []
-    lines.append(f"🦅 **GRANDMASTER HUNT REPORT** — {target_date}")
-    lines.append(f"{'─' * 30}")
-    
-    # Scan Results
-    lines.append(f"📊 **Scan Results:**")
-    
     macro = report.get("macro", 0)
     stocks = report.get("stocks", 0)
     company = report.get("company", 0)
     total = macro + stocks + company
-    
-    lines.append(f"  🌍 Macro News: **{macro}** articles")
-    lines.append(f"  📈 Stocks News: **{stocks}** articles")
-    lines.append(f"  🏢 Company News: **{company}** articles")
-    lines.append(f"  📰 **New in this Hunt: {total} articles**")
-    
-    # Total in DB for session
     total_db = report.get("total_in_db", 0)
-    if total_db > 0:
-        lines.append(f"  🗄️ **Total in Trading Session Window: {total_db} articles**")
-    
-    # Calendar
     cal_events = report.get("calendar_events", 0)
-    if cal_events > 0:
-        lines.append(f"  📅 Calendar Events: **{cal_events}** synced")
-    
-    # MarketAux Keys
     ma_keys = report.get("marketaux_keys", 0)
-    if ma_keys > 0:
-        lines.append(f"  🔑 MarketAux Keys: **{ma_keys}** active")
-    
-    # Tickers scanned
     tickers_count = report.get("tickers_scanned", 0)
-    if tickers_count > 0:
-        lines.append(f"  🎯 Tickers Scanned: **{tickers_count}**")
+    errors = report.get("errors", [])
     
-    # Duration
     minutes = int(duration_sec // 60)
     seconds = int(duration_sec % 60)
-    lines.append(f"  ⏱️ Duration: **{minutes}m {seconds}s**")
     
-    # Errors
-    if report["errors"]:
-        lines.append(f"\n⚠️ **Issues ({len(report['errors'])}):**")
-        for err in report["errors"]:
-            lines.append(f"  ❌ {err}")
+    # Categorize errors into warnings and criticals
+    warnings = [e for e in errors if any(w in e.lower() for w in ["missing", "not found", "skipping", "sync failed"])]
+    criticals = [e for e in errors if e not in warnings]
+    
+    # Determine embed color (Discord color codes)
+    if criticals:
+        color = 0xFF0000  # Red
+        status_line = "🚨 CRITICAL ISSUES DETECTED"
+    elif warnings:
+        color = 0xFFAA00  # Orange/Yellow
+        status_line = "⚠️ Completed with Warnings"
     else:
-        lines.append(f"\n{status_emoji} **All systems nominal. No errors.**")
+        color = 0x00FF00  # Green
+        status_line = "✅ All systems nominal"
     
-    return "\n".join(lines)
+    # Build Description
+    desc_lines = [
+        f"🌍 **Macro:** {macro}  |  📈 **Stocks:** {stocks}  |  🏢 **Company:** {company}",
+        f"📰 **New in Hunt:** {total} articles",
+    ]
+    if total_db > 0:
+        desc_lines.append(f"🗄️ **Session Total:** {total_db} articles")
+    if cal_events > 0:
+        desc_lines.append(f"📅 **Calendar:** {cal_events} events synced")
+    if tickers_count > 0:
+        desc_lines.append(f"🎯 **Tickers:** {tickers_count}  |  🔑 **Keys:** {ma_keys}")
+    desc_lines.append(f"⏱️ **Duration:** {minutes}m {seconds}s  |  **Run:** {run_number}/{max_runs}")
+    
+    embed = {
+        "title": f"🦵 GRANDMASTER HUNT — {target_date}",
+        "description": "\n".join(desc_lines),
+        "color": color,
+        "footer": {"text": status_line}
+    }
+    
+    # Add error fields
+    if criticals:
+        embed["fields"] = embed.get("fields", [])
+        embed["fields"].append({
+            "name": f"🚨 Critical ({len(criticals)})",
+            "value": "\n".join([f"❌ {e}" for e in criticals[:5]]),
+            "inline": False
+        })
+    if warnings:
+        embed["fields"] = embed.get("fields", [])
+        embed["fields"].append({
+            "name": f"⚠️ Warnings ({len(warnings)})",
+            "value": "\n".join([f"• {w}" for w in warnings[:5]]),
+            "inline": False
+        })
+    
+    return None, [embed]
 
-def run_automation():
+def run_automation(run_number=1, max_runs=3):
+    """
+    Main automation orchestrator.
+    Returns a result dict: {"success": bool, "articles_found": int, "errors": list}
+    """
     start_time = time.time()
     update_log("🚀 INITIATING AUTOMATED GRANDMASTER HUNT PROTOCOL (MARKET-CENTRIC DAY)")
     
@@ -332,54 +352,87 @@ def run_automation():
         report["errors"].append(f"Company scan crashed: {e}")
 
     # Final count: total articles in session window
+    # 📝 HUNT HEARTBEAT: Log Start
+    hunt_id = db.log_hunt_start(run_number, target_date, lookback_start, lookback_end)
+    update_log(f"💓 Hunt Heartbeat Started (ID: {hunt_id}, Run: {run_number}/{max_runs})")
+
     iso_start = lookback_start.isoformat()
     iso_end = lookback_end.isoformat()
     report["total_in_db"] = db.count_news_range(iso_start, iso_end)
     update_log(f"📦 Total articles in session window: {report['total_in_db']}")
 
     # Final Report
+    total_found = report["macro"] + report["stocks"] + report["company"]
     duration = time.time() - start_time
     update_log("🏁 GRANDMASTER HUNT COMPLETE.")
     
-    discord_message = build_discord_report(target_date, report, duration)
-    send_discord_report(discord_webhook, discord_message)
+    msg_text, embeds = build_discord_report(target_date, report, duration, run_number, max_runs)
+    send_discord_report(discord_webhook, msg_text, embeds)
 
-    # 🚪 PROPER EXIT: Close DB connections to avoid AIOHTTP warnings
-    try:
-        if db:
-            db.client.close()
-            update_log("🔌 News DB Disconnected.")
-        if analyst_db:
-            analyst_db.client.close()
-            update_log("🔌 Analyst DB Disconnected.")
-    except Exception as e:
-        update_log(f"⚠️ Error during DB disconnection: {e}")
+    # 📝 HUNT HEARTBEAT: Log End
+    hunt_status = "SUCCESS" if not report["errors"] else ("PARTIAL" if total_found > 0 else "FAILED")
+    db.log_hunt_end(hunt_id, hunt_status, total_found, report["total_in_db"], duration, report["errors"] or None)
+    update_log(f"💓 Hunt Heartbeat Finalized: {hunt_status}")
+
+    # Return result for multi-run logic
+    return {
+        "success": not report["errors"],
+        "articles_found": total_found,
+        "errors": report["errors"]
+    }
+
+MAX_HUNT_RUNS = 3
+COOLDOWN_BETWEEN_RUNS = 30  # seconds
 
 if __name__ == "__main__":
-    try:
-        run_automation()
-    except Exception as e:
-        # 🚨 EMERGENCY OVERRIDE: If the whole script crashes, try to send one last Discord alert
-        error_details = traceback.format_exc()
-        
-        # Try to get webhook one last time if it's not set
+    for run_num in range(1, MAX_HUNT_RUNS + 1):
         try:
-            infisical = InfisicalManager()
-            webhook = infisical.get_discord_webhook()
-            if webhook:
-                target_date = datetime.datetime.now(datetime.timezone.utc).date()
-                emergency_msg = (
-                    f"🚨 **CRITICAL SYSTEM FAILURE** — {target_date}\n"
-                    f"{'─' * 30}\n"
-                    f"The Grandmaster Hunt has crashed unexpectedly!\n\n"
-                    f"**Error:** `{str(e)}`\n"
-                    f"**Details:**\n```python\n{error_details[:500]}...\n```\n"
-                    f"🔍 Please check `logs/system/automation_stderr.log` for the full trace."
-                )
-                requests.post(webhook, json={"content": emergency_msg}, timeout=10)
-        except Exception:
-            pass # Total silence if even the emergency notification fails
+            update_log(f"\n{'='*50}")
+            update_log(f"🔁 HUNT ATTEMPT {run_num}/{MAX_HUNT_RUNS}")
+            update_log(f"{'='*50}")
             
-        logging.error(f"FATAL CRASH: {e}")
-        logging.error(error_details)
-        sys.exit(1)
+            result = run_automation(run_number=run_num, max_runs=MAX_HUNT_RUNS)
+            
+            if result and result.get("success"):
+                update_log(f"✅ Run {run_num} completed successfully. No need to retry.")
+                break
+            else:
+                errors = result.get("errors", []) if result else ["Unknown failure"]
+                update_log(f"⚠️ Run {run_num} completed with {len(errors)} error(s).")
+                if run_num < MAX_HUNT_RUNS:
+                    update_log(f"⏳ Cooling down {COOLDOWN_BETWEEN_RUNS}s before next attempt...")
+                    time.sleep(COOLDOWN_BETWEEN_RUNS)
+                    
+        except Exception as e:
+            error_details = traceback.format_exc()
+            update_log(f"🚨 Run {run_num} CRASHED: {e}")
+            
+            if run_num == MAX_HUNT_RUNS:
+                # Final attempt failed — send emergency Discord alert
+                try:
+                    infisical = InfisicalManager()
+                    webhook = infisical.get_discord_webhook()
+                    if webhook:
+                        target_date = datetime.datetime.now(datetime.timezone.utc).date()
+                        emergency_embed = {
+                            "title": f"🚨 CRITICAL SYSTEM FAILURE — {target_date}",
+                            "description": (
+                                f"The Grandmaster Hunt has crashed on **all {MAX_HUNT_RUNS} attempts**!\n\n"
+                                f"**Error:** `{str(e)}`\n"
+                                f"**Details:**\n```python\n{error_details[:500]}...\n```\n"
+                                f"🔍 Check `logs/app/` for the full trace."
+                            ),
+                            "color": 0xFF0000  # Red
+                        }
+                        requests.post(webhook, json={"embeds": [emergency_embed]}, timeout=10)
+                except Exception:
+                    pass
+                
+                logging.error(f"FATAL CRASH (All {MAX_HUNT_RUNS} attempts): {e}")
+                logging.error(error_details)
+                sys.exit(1)
+            else:
+                update_log(f"⏳ Cooling down {COOLDOWN_BETWEEN_RUNS}s before retry...")
+                time.sleep(COOLDOWN_BETWEEN_RUNS)
+    
+    update_log("🎬 ALL HUNT ATTEMPTS FINISHED.")

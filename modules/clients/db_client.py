@@ -1,5 +1,5 @@
 import libsql_client
-from datetime import datetime
+import datetime
 from dateutil import parser as dt_parser
 import modules.utils.market_utils as market_utils
 
@@ -112,6 +112,29 @@ class NewsDatabase:
              self.client.execute("CREATE INDEX IF NOT EXISTS idx_cal_date ON market_calendar(event_date);")
         except Exception as e:
             print(f"❌ Calendar Init Error: {e}")
+
+        # 4. Create Hunt Logs Table (Heartbeat/Observability)
+        sql_create_hunts = """
+        CREATE TABLE IF NOT EXISTS hunt_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_number INTEGER DEFAULT 1,
+            trading_session_date TEXT,
+            started_at TEXT,
+            ended_at TEXT,
+            status TEXT DEFAULT 'RUNNING',
+            articles_found INTEGER DEFAULT 0,
+            articles_in_session INTEGER DEFAULT 0,
+            duration_seconds REAL DEFAULT 0,
+            errors TEXT,
+            lookback_start TEXT,
+            lookback_end TEXT
+        );
+        """
+        try:
+            self.client.execute(sql_create_hunts)
+            self.client.execute("CREATE INDEX IF NOT EXISTS idx_hunt_date ON hunt_logs(trading_session_date);")
+        except Exception as e:
+            print(f"❌ Hunt Logs Init Error: {e}")
 
     def fetch_monitored_tickers(self):
         """
@@ -539,3 +562,44 @@ class NewsDatabase:
         except Exception as e:
             print(f"⚠️ Failed to fetch last update time: {e}")
             return None
+
+    # --- HUNT HEARTBEAT METHODS ---
+    def log_hunt_start(self, run_number, trading_session_date, lookback_start, lookback_end):
+        """
+        Records the start of a Hunt run. Returns the hunt_log ID for later update.
+        """
+        if not self.client: return None
+        started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        session_str = trading_session_date.strftime("%Y-%m-%d") if hasattr(trading_session_date, 'strftime') else str(trading_session_date)
+        lb_start = lookback_start.isoformat() if hasattr(lookback_start, 'isoformat') else str(lookback_start)
+        lb_end = lookback_end.isoformat() if hasattr(lookback_end, 'isoformat') else str(lookback_end)
+        try:
+            sql = """INSERT INTO hunt_logs 
+                     (run_number, trading_session_date, started_at, status, lookback_start, lookback_end) 
+                     VALUES (?, ?, ?, 'RUNNING', ?, ?)"""
+            rs = self.client.execute(sql, [run_number, session_str, started_at, lb_start, lb_end])
+            # Get the last inserted row ID
+            id_rs = self.client.execute("SELECT last_insert_rowid()")
+            if id_rs.rows:
+                return id_rs.rows[0][0]
+            return None
+        except Exception as e:
+            print(f"⚠️ Hunt Log Start Error: {e}")
+            return None
+
+    def log_hunt_end(self, hunt_id, status, articles_found, articles_in_session, duration_seconds, errors=None):
+        """
+        Updates a Hunt log entry with the final results.
+        status: 'SUCCESS', 'PARTIAL', or 'FAILED'
+        """
+        if not self.client or not hunt_id: return
+        ended_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        errors_str = "; ".join(errors) if errors else None
+        try:
+            sql = """UPDATE hunt_logs 
+                     SET ended_at = ?, status = ?, articles_found = ?, 
+                         articles_in_session = ?, duration_seconds = ?, errors = ?
+                     WHERE id = ?"""
+            self.client.execute(sql, [ended_at, status, articles_found, articles_in_session, duration_seconds, errors_str, hunt_id])
+        except Exception as e:
+            print(f"⚠️ Hunt Log End Error: {e}")
