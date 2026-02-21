@@ -27,9 +27,9 @@ async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
     print('Bot is ready to receive commands.')
 
-@bot.command(name="fetch")
+@bot.command(name="news")
 async def trigger_fetch(ctx, target_date: str = None):
-    """Triggers the GitHub Actions News-Fetcher workflow. Optional: !fetch YYYY-MM-DD"""
+    """Triggers the GitHub Actions News-Fetcher workflow. Optional: !news YYYY-MM-DD"""
     
     # 🛡️ Validate date format BEFORE dispatching
     if target_date:
