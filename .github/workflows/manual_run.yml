@@ -2,9 +2,9 @@ name: 🦅 NewsFetcher Hunt (Schedule + Manual)
 
 on:
   schedule:
-    - cron: '5 1 * * *'   # 1:05 AM UTC
-    - cron: '35 1 * * *'  # 1:35 AM UTC
-    - cron: '5 2 * * *'   # 2:05 AM UTC
+    - cron: '17 1 * * *'  # 1:17 AM UTC (Off-peak to avoid Actions queue delay)
+    - cron: '43 1 * * *'  # 1:43 AM UTC (Off-peak)
+    - cron: '11 2 * * *'  # 2:11 AM UTC (Off-peak)
   workflow_dispatch:
     inputs:
       target_date:
