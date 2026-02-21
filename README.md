@@ -1,4 +1,4 @@
-# 🦅 News-Fetcher: The Automation Edition (CLI)
+# 🦅 News-Fetcher (Automation + Dashboard)
 
 A professional-grade market intelligence tool designed to scrape, aggregate, and analyze financial news from multiple sources (Yahoo Finance, Google News, MarketAux). Built for reliability, background automation, and granular control.
 
