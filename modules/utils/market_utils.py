@@ -172,6 +172,19 @@ class DeadDriverException(Exception):
 class BlockedContentException(Exception):
     pass
 
+def is_driver_alive(driver):
+    """
+    Quick health check: probes the driver to see if Chrome is still responding.
+    Returns True if alive, False if dead (connection refused, session invalid, etc.)
+    """
+    if not driver:
+        return False
+    try:
+        _ = driver.current_url
+        return True
+    except Exception:
+        return False
+
 import threading
 
 def fetch_yahoo_selenium(driver, url, log_callback, timeout=20):

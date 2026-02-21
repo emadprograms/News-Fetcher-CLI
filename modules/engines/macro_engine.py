@@ -141,8 +141,12 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
     """
     The Yahoo Macro Hunter (Selenium Edition).
     Fetches Economy, Energy, and Geo news from Yahoo Finance.
+    Returns dict: {"articles": [...], "errors": [...]}
     """
     found_reports = []
+    scan_errors = []  # Track errors for Discord reporting
+    consecutive_driver_failures = 0
+    MAX_CONSECUTIVE_FAILURES = 3
     # If existing_titles passed, we use it for checking dupes
     if existing_titles is None:
         if db:
@@ -423,6 +427,24 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
 
                     content = None
                     
+                    # 🩺 PRE-FETCH HEALTH CHECK
+                    if not market_utils.is_driver_alive(driver):
+                        log_callback(f"│   │   └── 💀 Driver dead before fetch. Rebooting...")
+                        market_utils.force_quit_driver(driver)
+                        try:
+                            driver = market_utils.get_selenium_driver(headless=headless)
+                            log_callback(f"│   │   └── ♻️ Driver Rebooted Successfully.")
+                            consecutive_driver_failures = 0
+                        except Exception as reboot_err:
+                            consecutive_driver_failures += 1
+                            log_callback(f"│   │   └── ❌ Reboot Failed ({consecutive_driver_failures}/{MAX_CONSECUTIVE_FAILURES}): {reboot_err}")
+                            if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                                err_msg = f"Macro scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times consecutively"
+                                log_callback(f"│   │   └── 🚨 {err_msg}")
+                                scan_errors.append(err_msg)
+                                break
+                            continue
+                    
                     # 🔄 RETRY LOOP (Start)
                     for attempt in range(max_attempts):
                         try:
@@ -430,15 +452,21 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
 
                             content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback)
                             if content:
+                                consecutive_driver_failures = 0  # Reset on success
                                 break # Success
                         except market_utils.DeadDriverException:
                             log_callback(f"│   │   └── 💀 Browser Died (Attempt {attempt+1}/{max_attempts}). Restarting...")
                             market_utils.force_quit_driver(driver)
                             try:
-                                driver = market_utils.get_selenium_driver()
+                                driver = market_utils.get_selenium_driver(headless=headless)
                                 log_callback(f"│   │   └── ♻️ Driver Rebooted Successfully.")
+                                consecutive_driver_failures = 0
                             except Exception as reboot_err:
-                                log_callback(f"│   │   └── ❌ Reboot Failed: {reboot_err}")
+                                consecutive_driver_failures += 1
+                                log_callback(f"│   │   └── ❌ Reboot Failed ({consecutive_driver_failures}/{MAX_CONSECUTIVE_FAILURES}): {reboot_err}")
+                                if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                                    err_msg = f"Macro scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times consecutively"
+                                    scan_errors.append(err_msg)
                                 break # Stop retrying if we can't get a driver
                         except market_utils.BlockedContentException as be:
                             log_callback(f"│   │   └── 🛑 {str(be)}")
@@ -523,22 +551,37 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
                     try:
                         if driver: driver.get("about:blank")
                     except:
-                        pass # If this fails, the next fetch will trigger the reboot logic
+                        # Driver is dead — force reboot now instead of continuing with dead driver
+                        log_callback(f"│   │   └── 💀 Driver died during sanitization. Rebooting...")
+                        market_utils.force_quit_driver(driver)
+                        try:
+                            driver = market_utils.get_selenium_driver(headless=headless)
+                            consecutive_driver_failures = 0
+                        except Exception as reboot_err:
+                            consecutive_driver_failures += 1
+                            if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                                err_msg = f"Macro scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times"
+                                scan_errors.append(err_msg)
+                                break
                     
             except market_utils.DeadDriverException:
                 log_callback(f"│   └── ❌ CRITICAL: Browser Frozen/Died. Rebooting Driver...")
+                scan_errors.append(f"Chrome crashed during feed: {feed_name}")
                 try:
                     if driver: driver.quit()
                 except:
                     pass
                 try:
-                    driver = market_utils.get_selenium_driver()
+                    driver = market_utils.get_selenium_driver(headless=headless)
                     log_callback(f"│   └── ♻️ Driver Rebooted Successfully.")
+                    consecutive_driver_failures = 0
                 except Exception as e:
-                    log_callback(f"│   └── ❌ Reboot Failed: {e}")
-                    # If reboot fails, we might as well stop or continue to try again (likely fail)
-                    # Let's continue to let generic error catcher handle next loop if needed, 
-                    # but realistically we hope get_selenium_driver works.
+                    consecutive_driver_failures += 1
+                    log_callback(f"│   └── ❌ Reboot Failed ({consecutive_driver_failures}/{MAX_CONSECUTIVE_FAILURES}): {e}")
+                    if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                        err_msg = f"Macro scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times"
+                        scan_errors.append(err_msg)
+                        break
                 
             except Exception as e:
                 log_callback(f"│   └── ❌ RSS Error: {str(e)}")
@@ -550,16 +593,12 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
             
     except Exception as e:
         log_callback(f"❌ Critical Macro Scan Error: {e}")
+        scan_errors.append(f"Critical macro scan error: {e}")
     finally:
         if driver: market_utils.force_quit_driver(driver)
         
         # 🏁 ONLY FINISH if we actually went through the targets
-        # If interrupted by user/error before starting, don't kill the resume state
         if 'rss_targets' in locals() and len(rss_targets) > 0:
-             # Check if we reached the end of the loop normally
-             # Simple heuristic: if we are in finally and no exception was unhandled 
-             # (though here we catch them). 
-             # Better: mark as fully done ONLY if pm says so or we expect it.
              pm.finish_scan()
         
-    return found_reports
+    return {"articles": found_reports, "errors": scan_errors}

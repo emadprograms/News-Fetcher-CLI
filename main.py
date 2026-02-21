@@ -94,35 +94,50 @@ def build_discord_report(target_date, report, duration_sec, run_number=1, max_ru
     seconds = int(duration_sec % 60)
     
     # Categorize errors into warnings and criticals
-    warnings = [e for e in errors if any(w in e.lower() for w in ["missing", "not found", "skipping", "sync failed"])]
-    criticals = [e for e in errors if e not in warnings]
+    critical_keywords = ["crashed", "failed", "driver died", "reboot failed", "connection refused", "aborted", "critical"]
+    warning_keywords = ["missing", "not found", "skipping", "sync failed", "timeout", "headline only", "no content"]
+    
+    criticals = []
+    warnings = []
+    for e in errors:
+        e_lower = e.lower()
+        if any(w in e_lower for w in critical_keywords):
+            criticals.append(e)
+        elif any(w in e_lower for w in warning_keywords):
+            warnings.append(e)
+        else:
+            criticals.append(e)  # Default unknown errors to critical
     
     # Determine embed color (Discord color codes)
     if criticals:
         color = 0xFF0000  # Red
-        status_line = "🚨 CRITICAL ISSUES DETECTED"
+        status_line = f"\U0001f6a8 CRITICAL ISSUES DETECTED ({len(criticals)} errors)"
     elif warnings:
         color = 0xFFAA00  # Orange/Yellow
-        status_line = "⚠️ Completed with Warnings"
+        status_line = f"\u26a0\ufe0f Completed with {len(warnings)} warning(s)"
     else:
         color = 0x00FF00  # Green
-        status_line = "✅ All systems nominal"
+        status_line = "\u2705 All systems nominal"
     
     # Build Description
     desc_lines = [
-        f"🌍 **Macro:** {macro}  |  📈 **Stocks:** {stocks}  |  🏢 **Company:** {company}",
-        f"📰 **New in Hunt:** {total} articles",
+        f"\U0001f30d **Macro:** {macro}  |  \U0001f4c8 **Stocks:** {stocks}  |  \U0001f3e2 **Company:** {company}",
+        f"\U0001f4f0 **New in Hunt:** {total} articles",
     ]
     if total_db > 0:
-        desc_lines.append(f"🗄️ **Session Total:** {total_db} articles")
+        desc_lines.append(f"\U0001f5c4\ufe0f **Session Total:** {total_db} articles")
     if cal_events > 0:
-        desc_lines.append(f"📅 **Calendar:** {cal_events} events synced")
+        desc_lines.append(f"\U0001f4c5 **Calendar:** {cal_events} events synced")
     if tickers_count > 0:
-        desc_lines.append(f"🎯 **Tickers:** {tickers_count}  |  🔑 **Keys:** {ma_keys}")
-    desc_lines.append(f"⏱️ **Duration:** {minutes}m {seconds}s  |  **Run:** {run_number}/{max_runs}")
+        desc_lines.append(f"\U0001f3af **Tickers:** {tickers_count}  |  \U0001f511 **Keys:** {ma_keys}")
+    desc_lines.append(f"\u23f1\ufe0f **Duration:** {minutes}m {seconds}s  |  **Run:** {run_number}/{max_runs}")
+    
+    # Show error count in description if any errors exist
+    if errors:
+        desc_lines.append(f"\n\u26a0\ufe0f **{len(errors)} issue(s) detected** — see below")
     
     embed = {
-        "title": f"🦵 GRANDMASTER HUNT — {target_date}",
+        "title": f"\U0001f9b5 GRANDMASTER HUNT \u2014 {target_date}",
         "description": "\n".join(desc_lines),
         "color": color,
         "footer": {"text": status_line}
@@ -132,15 +147,15 @@ def build_discord_report(target_date, report, duration_sec, run_number=1, max_ru
     if criticals:
         embed["fields"] = embed.get("fields", [])
         embed["fields"].append({
-            "name": f"🚨 Critical ({len(criticals)})",
-            "value": "\n".join([f"❌ {e}" for e in criticals[:5]]),
+            "name": f"\U0001f6a8 Critical ({len(criticals)})",
+            "value": "\n".join([f"\u274c {e}" for e in criticals[:5]]),
             "inline": False
         })
     if warnings:
         embed["fields"] = embed.get("fields", [])
         embed["fields"].append({
-            "name": f"⚠️ Warnings ({len(warnings)})",
-            "value": "\n".join([f"• {w}" for w in warnings[:5]]),
+            "name": f"\u26a0\ufe0f Warnings ({len(warnings)})",
+            "value": "\n".join([f"\u2022 {w}" for w in warnings[:5]]),
             "inline": False
         })
     
@@ -274,13 +289,13 @@ def run_automation(run_number=1, max_runs=3):
 
     # 2. Run Macro Scan
     try:
-        update_log("🌍 Starting Macro Scan...")
+        update_log("\U0001f30d Starting Macro Scan...")
         # Range-based dedup: covers entire session window (critical for weekend leaps)
         iso_start = lookback_start.isoformat()
         iso_end = lookback_end.isoformat()
         existing_titles = db.fetch_existing_titles_range(iso_start, iso_end)
         cache = db.fetch_cache_map(target_date, None)
-        macro_results = macro_engine.run_macro_scan(
+        macro_result = macro_engine.run_macro_scan(
             target_date, 
             max_pages=5, 
             log_callback=update_log, 
@@ -292,19 +307,33 @@ def run_automation(run_number=1, max_runs=3):
             lookback_end=lookback_end,
             trading_session_date=target_date
         )
-        report["macro"] = len(macro_results) if macro_results else 0
-        update_log(f"✅ Macro Scan Complete. {report['macro']} new articles.")
+        # Handle structured return: {"articles": [...], "errors": [...]}
+        if isinstance(macro_result, dict):
+            macro_articles = macro_result.get("articles", [])
+            macro_errors = macro_result.get("errors", [])
+            report["errors"].extend(macro_errors)
+        else:
+            macro_articles = macro_result if macro_result else []  # Legacy fallback
+        report["macro"] = len(macro_articles)
+        # Check for headline-only ratio (driver issues indicator)
+        if macro_articles:
+            timeout_count = sum(1 for a in macro_articles if a.get("publisher", "") in ["Unknown (Timeout)", "Unknown (Error)"])
+            if timeout_count > 0:
+                ratio = timeout_count / len(macro_articles) * 100
+                if ratio > 50:
+                    report["errors"].append(f"Macro: {int(ratio)}% of articles had no content extracted (likely driver issues)")
+        update_log(f"\u2705 Macro Scan Complete. {report['macro']} new articles.")
     except Exception as e:
-        update_log(f"❌ Macro Scan Failed: {e}")
+        update_log(f"\u274c Macro Scan Failed: {e}")
         report["errors"].append(f"Macro scan crashed: {e}")
 
     # 3. Run Stocks Scan
     try:
-        update_log("📈 Starting Stocks Scan...")
+        update_log("\U0001f4c8 Starting Stocks Scan...")
         # Refresh dedup context (macro may have added articles)
         existing_titles = db.fetch_existing_titles_range(iso_start, iso_end)
         cache = db.fetch_cache_map(target_date, None)
-        stocks_results = stocks_engine.run_stocks_scan(
+        stocks_result = stocks_engine.run_stocks_scan(
             target_date, 
             max_pages=5, 
             log_callback=update_log, 
@@ -316,10 +345,24 @@ def run_automation(run_number=1, max_runs=3):
             lookback_end=lookback_end,
             trading_session_date=target_date
         )
-        report["stocks"] = len(stocks_results) if stocks_results else 0
-        update_log(f"✅ Stocks Scan Complete. {report['stocks']} new articles.")
+        # Handle structured return: {"articles": [...], "errors": [...]}
+        if isinstance(stocks_result, dict):
+            stocks_articles = stocks_result.get("articles", [])
+            stocks_errors = stocks_result.get("errors", [])
+            report["errors"].extend(stocks_errors)
+        else:
+            stocks_articles = stocks_result if stocks_result else []  # Legacy fallback
+        report["stocks"] = len(stocks_articles)
+        # Check for headline-only ratio
+        if stocks_articles:
+            timeout_count = sum(1 for a in stocks_articles if a.get("publisher", "") in ["Unknown (Timeout)", "Unknown (Error)"])
+            if timeout_count > 0:
+                ratio = timeout_count / len(stocks_articles) * 100
+                if ratio > 50:
+                    report["errors"].append(f"Stocks: {int(ratio)}% of articles had no content extracted (likely driver issues)")
+        update_log(f"\u2705 Stocks Scan Complete. {report['stocks']} new articles.")
     except Exception as e:
-        update_log(f"❌ Stocks Scan Failed: {e}")
+        update_log(f"\u274c Stocks Scan Failed: {e}")
         report["errors"].append(f"Stocks scan crashed: {e}")
 
     # 4. Run Company Specific Scan (MarketAux)

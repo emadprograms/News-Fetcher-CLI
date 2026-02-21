@@ -60,12 +60,16 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
     """
     Main entry point for Stocks Scan.
     scans YAHOO_RSS_TARGETS for news.
+    Returns dict: {"articles": [...], "errors": [...]}
     """
     # Use passed list (Resume) or Default
     # if not ticker_list:
     #     ticker_list = TARGET_STOCKS
     
     found_reports = []
+    scan_errors = []  # Track errors for Discord reporting
+    consecutive_driver_failures = 0
+    MAX_CONSECUTIVE_FAILURES = 3
     seen_titles = set()
     if existing_titles:
         if isinstance(existing_titles, set):
@@ -281,6 +285,24 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                         max_attempts = 2
                         log_callback(f"│   │   └── 🌟 Premium Source Detected. Retries Enabled.")
 
+                    # 🩺 PRE-FETCH HEALTH CHECK
+                    if not market_utils.is_driver_alive(driver):
+                        log_callback(f"│   │   └── 💀 Driver dead before fetch. Rebooting...")
+                        market_utils.force_quit_driver(driver)
+                        try:
+                            driver = market_utils.get_selenium_driver(headless=headless)
+                            log_callback(f"│   │   └── ♻️ Driver Rebooted Successfully.")
+                            consecutive_driver_failures = 0
+                        except Exception as reboot_err:
+                            consecutive_driver_failures += 1
+                            log_callback(f"│   │   └── ❌ Reboot Failed ({consecutive_driver_failures}/{MAX_CONSECUTIVE_FAILURES}): {reboot_err}")
+                            if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                                err_msg = f"Stocks scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times consecutively"
+                                log_callback(f"│   │   └── 🚨 {err_msg}")
+                                scan_errors.append(err_msg)
+                                break
+                            continue
+
                     # 🔄 RETRY LOOP (Start)
                     for attempt in range(max_attempts):
                         try:
@@ -289,11 +311,20 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                             content = market_utils.fetch_yahoo_selenium(driver, real_url, log_callback)
                             if content:
                                 url_valid = True
+                                consecutive_driver_failures = 0  # Reset on success
                                 break # Success!
                         except market_utils.DeadDriverException:
                             log_callback(f"│   │   └── 💀 Browser Died (Attempt {attempt+1}/{max_attempts}). Restarting...")
                             market_utils.force_quit_driver(driver)
-                            driver = market_utils.get_selenium_driver()
+                            try:
+                                driver = market_utils.get_selenium_driver(headless=headless)
+                                consecutive_driver_failures = 0
+                            except Exception as reboot_err:
+                                consecutive_driver_failures += 1
+                                if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                                    err_msg = f"Stocks scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times"
+                                    scan_errors.append(err_msg)
+                                break
                             # Loop continues to next attempt
                         except market_utils.BlockedContentException as be:
                             log_callback(f"│   │   └── 🛑 {str(be)}")
@@ -410,18 +441,34 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                     # 🧹 SANITIZE DRIVER
                     try: 
                         if driver: driver.get("about:blank")
-                    except: pass
+                    except:
+                        # Driver is dead — force reboot now
+                        log_callback(f"│   │   └── 💀 Driver died during sanitization. Rebooting...")
+                        market_utils.force_quit_driver(driver)
+                        try:
+                            driver = market_utils.get_selenium_driver(headless=headless)
+                            consecutive_driver_failures = 0
+                        except Exception as reboot_err:
+                            consecutive_driver_failures += 1
+                            if consecutive_driver_failures >= MAX_CONSECUTIVE_FAILURES:
+                                err_msg = f"Stocks scan aborted: Chrome reboot failed {MAX_CONSECUTIVE_FAILURES} times"
+                                scan_errors.append(err_msg)
+                                break
                     
             except Exception as e:
                 log_callback(f"│   └── ❌ RSS Error: {str(e)}")
+                scan_errors.append(f"RSS error on {feed_name}: {e}")
                 
             time.sleep(1) 
 
+    except Exception as e:
+        log_callback(f"❌ Critical Stocks Scan Error: {e}")
+        scan_errors.append(f"Critical stocks scan error: {e}")
     finally:
         log_callback(f"├── 🛑 Closing Chrome Driver...")
         market_utils.force_quit_driver(driver)
 
-    return found_reports
+    return {"articles": found_reports, "errors": scan_errors}
 
 def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback, db=None, cache_map=None, existing_titles=None, lookback_start=None, lookback_end=None, trading_session_date=None):
     """
