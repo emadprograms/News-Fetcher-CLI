@@ -569,7 +569,9 @@ class TestBuildDiscordReport(unittest.TestCase):
             "tickers_scanned": 15, "total_in_db": 100,
             "errors": []
         }
-        msg, embeds = self.build(datetime.date(2026, 6, 1), report, 120)
+        dt_start = datetime.datetime(2026, 5, 30, 1, 0, tzinfo=datetime.timezone.utc)
+        dt_end = datetime.datetime(2026, 6, 2, 1, 0, tzinfo=datetime.timezone.utc)
+        msg, embeds = self.build(datetime.date(2026, 6, 1), dt_start, dt_end, report, 120)
         self.assertIsNone(msg)  # Embed mode returns None for text
         self.assertIsInstance(embeds, list)
         self.assertEqual(len(embeds), 1)
@@ -581,7 +583,9 @@ class TestBuildDiscordReport(unittest.TestCase):
             "tickers_scanned": 0, "total_in_db": 0,
             "errors": []
         }
-        _, embeds = self.build(datetime.date(2026, 6, 1), report, 120)
+        dt_start = datetime.datetime(2026, 5, 30, 1, 0, tzinfo=datetime.timezone.utc)
+        dt_end = datetime.datetime(2026, 6, 2, 1, 0, tzinfo=datetime.timezone.utc)
+        _, embeds = self.build(datetime.date(2026, 6, 1), dt_start, dt_end, report, 120)
         self.assertEqual(embeds[0]["color"], 0x00FF00)  # Green
         self.assertIn("nominal", embeds[0]["footer"]["text"])
 
@@ -592,7 +596,9 @@ class TestBuildDiscordReport(unittest.TestCase):
             "tickers_scanned": 0, "total_in_db": 0,
             "errors": ["Database connection failed", "Selenium crashed"]
         }
-        _, embeds = self.build(datetime.date(2026, 6, 1), report, 60)
+        dt_start = datetime.datetime(2026, 5, 30, 1, 0, tzinfo=datetime.timezone.utc)
+        dt_end = datetime.datetime(2026, 6, 2, 1, 0, tzinfo=datetime.timezone.utc)
+        _, embeds = self.build(datetime.date(2026, 6, 1), dt_start, dt_end, report, 60)
         self.assertEqual(embeds[0]["color"], 0xFF0000)  # Red
         self.assertTrue(any("Critical" in f["name"] for f in embeds[0].get("fields", [])))
 
@@ -603,7 +609,9 @@ class TestBuildDiscordReport(unittest.TestCase):
             "tickers_scanned": 0, "total_in_db": 0,
             "errors": ["MarketAux API keys not found in Infisical"]
         }
-        _, embeds = self.build(datetime.date(2026, 6, 1), report, 60)
+        dt_start = datetime.datetime(2026, 5, 30, 1, 0, tzinfo=datetime.timezone.utc)
+        dt_end = datetime.datetime(2026, 6, 2, 1, 0, tzinfo=datetime.timezone.utc)
+        _, embeds = self.build(datetime.date(2026, 6, 1), dt_start, dt_end, report, 60)
         self.assertEqual(embeds[0]["color"], 0xFFAA00)  # Yellow
 
     def test_run_number_in_description(self):
@@ -613,7 +621,9 @@ class TestBuildDiscordReport(unittest.TestCase):
             "tickers_scanned": 0, "total_in_db": 0,
             "errors": []
         }
-        _, embeds = self.build(datetime.date(2026, 6, 1), report, 60, run_number=2, max_runs=3)
+        dt_start = datetime.datetime(2026, 5, 30, 1, 0, tzinfo=datetime.timezone.utc)
+        dt_end = datetime.datetime(2026, 6, 2, 1, 0, tzinfo=datetime.timezone.utc)
+        _, embeds = self.build(datetime.date(2026, 6, 1), dt_start, dt_end, report, 60, run_number=2, max_runs=3)
         self.assertIn("2/3", embeds[0]["description"])
 
 

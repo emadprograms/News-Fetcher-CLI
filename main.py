@@ -75,7 +75,7 @@ def send_discord_report(webhook_url, message, embeds=None):
     except Exception as e:
         update_log(f"⚠️ Discord notification failed: {e}")
 
-def build_discord_report(target_date, report, duration_sec, run_number=1, max_runs=3):
+def build_discord_report(target_date, lookback_start, lookback_end, report, duration_sec, run_number=1, max_runs=3):
     """
     Builds a rich Discord embed with categorized alerting.
     Returns (message_text, embed_list).
@@ -120,7 +120,11 @@ def build_discord_report(target_date, report, duration_sec, run_number=1, max_ru
         status_line = "\u2705 All systems nominal"
     
     # Build Description
+    start_str = lookback_start.strftime("%a %b %d, %H:%M UTC")
+    end_str = lookback_end.strftime("%a %b %d, %H:%M UTC")
+    
     desc_lines = [
+        f"🗓️ **Session:** {start_str} \u2192 {end_str}",
         f"\U0001f30d **Macro:** {macro}  |  \U0001f4c8 **Stocks:** {stocks}  |  \U0001f3e2 **Company:** {company}",
         f"\U0001f4f0 **New in Hunt:** {total} articles",
     ]
@@ -248,13 +252,13 @@ def run_automation(run_number=1, max_runs=3):
     except Exception as e:
         update_log(f"❌ Database Initialization Failed: {e}")
         report["errors"].append(f"Database init failed: {e}")
-        send_discord_report(discord_webhook, build_discord_report(target_date, report, time.time() - start_time))
+        send_discord_report(discord_webhook, *build_discord_report(target_date, lookback_start, lookback_end, report, time.time() - start_time))
         return
 
     if not db:
         update_log("❌ Error: News Database is required for scan result persistence.")
         report["errors"].append("News DB is required but unavailable")
-        send_discord_report(discord_webhook, build_discord_report(target_date, report, time.time() - start_time))
+        send_discord_report(discord_webhook, *build_discord_report(target_date, lookback_start, lookback_end, report, time.time() - start_time))
         return
 
     # 1.5 Sync Calendar
@@ -402,7 +406,7 @@ def run_automation(run_number=1, max_runs=3):
     duration = time.time() - start_time
     update_log("🏁 GRANDMASTER HUNT COMPLETE.")
     
-    msg_text, embeds = build_discord_report(target_date, report, duration, run_number, max_runs)
+    msg_text, embeds = build_discord_report(target_date, lookback_start, lookback_end, report, duration, run_number, max_runs)
     send_discord_report(discord_webhook, msg_text, embeds)
 
     # 📝 HUNT HEARTBEAT: Log End
