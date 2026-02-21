@@ -157,6 +157,7 @@ class InfisicalManager:
         """
         # Try specific user names, then fallback
         names = [
+            "discord_capital_raw_news_webhook_url",
             "discord_captain_news_webhook_url",
             "discord_news_harvest_cli_webhook_url",
             "discord_data_harvest_cli_webhook_url",
