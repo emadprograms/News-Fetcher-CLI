@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 import asyncio
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load local environment variables if present
@@ -29,6 +30,30 @@ async def on_ready():
 @bot.command(name="fetch")
 async def trigger_fetch(ctx, target_date: str = None):
     """Triggers the GitHub Actions News-Fetcher workflow. Optional: !fetch YYYY-MM-DD"""
+    
+    # 🛡️ Validate date format BEFORE dispatching
+    if target_date:
+        try:
+            parsed = datetime.strptime(target_date, "%Y-%m-%d")
+            
+            # Additional validation: Prevent future dates
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            if parsed > today:
+                await ctx.send(
+                    f"❌ **Invalid date:** `{target_date}` is in the future.\n"
+                    f"> The News Grid cannot predict the future (yet).\n"
+                    f"> Please provide today's date or a past date."
+                )
+                return
+                
+            target_date = parsed.strftime("%Y-%m-%d")  # Normalize to clean format
+        except ValueError:
+            await ctx.send(
+                f"❌ **Invalid date format:** `{target_date}`\n"
+                f"> Expected format: **YYYY-MM-DD** (e.g. `2026-02-18`)\n"
+                f"> Please try again with a valid date."
+            )
+            return
     
     # Visual feedback focused on News-Fetcher identity
     if target_date:
