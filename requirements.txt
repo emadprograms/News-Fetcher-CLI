@@ -17,3 +17,5 @@ investpy
 python-dateutil
 toml
 python-dotenv
+streamlit
+pandas
