@@ -1,4 +1,4 @@
-# 🦅 News-Fetcher: The Grandmaster Hunt
+# 🦅 News-Fetcher: The Hunt
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
