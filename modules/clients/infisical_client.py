@@ -16,14 +16,29 @@ class InfisicalManager:
         self.is_connected = False
         self.project_id = project_id 
         
-        # 1. Try Env Vars
-        client_id = os.getenv("INFISICAL_CLIENT_ID")
-        client_secret = os.getenv("INFISICAL_CLIENT_SECRET")
+        # 1. Try Streamlit Secrets First (for App compatibility)
+        client_id = None
+        client_secret = None
+        try:
+            import streamlit as st
+            sec = st.secrets.get("infisical")
+            if sec:
+                client_id = sec.get("client_id")
+                client_secret = sec.get("client_secret")
+                if not self.project_id: self.project_id = sec.get("project_id")
+                if client_id: print("🛡️ Using Streamlit Secrets.")
+        except:
+            pass
+
+        # 2. Try Env Vars if still missing
+        if not client_id:
+            client_id = os.getenv("INFISICAL_CLIENT_ID")
+        if not client_secret:
+            client_secret = os.getenv("INFISICAL_CLIENT_SECRET")
         if not self.project_id:
             self.project_id = os.getenv("INFISICAL_PROJECT_ID")
         
-        # 2. Key Fallback: Check secrets.toml if env vars missing
-        # We also check for project_id here if it's still missing
+        # 3. Last Resort: Local secrets.toml (Direct file read for CLI)
         if not client_id or not client_secret or not self.project_id:
             try:
                 data = toml.load(".streamlit/secrets.toml")
