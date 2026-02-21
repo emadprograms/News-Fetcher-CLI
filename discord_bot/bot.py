@@ -23,15 +23,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'✅ Logged in as {bot.user.name} ({bot.user.id})')
+    print(f'Logged in as {bot.user.name} ({bot.user.id})')
     print('Bot is ready to receive commands.')
 
 @bot.command(name="fetch")
-async def trigger_fetch(ctx):
-    """Triggers the GitHub Actions News-Fetcher workflow."""
+async def trigger_fetch(ctx, target_date: str = None):
+    """Triggers the GitHub Actions News-Fetcher workflow. Optional: !fetch YYYY-MM-DD"""
     
     # Visual feedback focused on News-Fetcher identity
-    status_msg = await ctx.send("� **Connecting to News Grid...** Dispatching signal to GitHub.")
+    if target_date:
+        status_msg = await ctx.send(f"📡 **Connecting to News Grid...** Dispatching signal for date: `{target_date}`")
+    else:
+        status_msg = await ctx.send("📡 **Connecting to News Grid...** Dispatching signal to GitHub.")
     
     # Prepare GitHub API request
     url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/dispatches"
@@ -47,7 +50,7 @@ async def trigger_fetch(ctx):
         "ref": "main"
     }
     
-    # Add optional inputs if provided
+    # Add optional target_date input if provided
     if target_date:
         data["inputs"] = {
             "target_date": target_date
@@ -78,8 +81,8 @@ async def trigger_fetch(ctx):
                                 print(f"Failed to fetch runs on attempt {attempt}: {runs_resp.status}")
                     
                     if live_url:
-                        await status_msg.edit(content=f"💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub]({live_url})**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
-                        print(f"Triggered fetch via Discord user: {ctx.author}")
+                        date_note = f" for `{target_date}`" if target_date else ""
+                        await status_msg.edit(content=f"💠 **Transmission Successful!**{date_note}\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub]({live_url})**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                     else:
                         await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link could not be retrieved - check GitHub Actions manually)\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                 else:
@@ -94,10 +97,10 @@ async def trigger_fetch(ctx):
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN:
-        print("❌ CRITICAL: DISCORD_BOT_TOKEN is missing.")
+        print("CRITICAL: DISCORD_BOT_TOKEN is missing.")
         exit(1)
     if not GITHUB_TOKEN:
-        print("❌ CRITICAL: GITHUB_PAT is missing.")
+        print("CRITICAL: GITHUB_PAT is missing.")
         exit(1)
         
     print("Starting bot...")
