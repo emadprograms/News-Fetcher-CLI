@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # Load local environment variables if present
@@ -36,13 +36,14 @@ async def trigger_fetch(ctx, target_date: str = None):
         try:
             parsed = datetime.strptime(target_date, "%Y-%m-%d")
             
-            # Additional validation: Prevent future dates
+            # Allow targeting upcoming trading days (up to 5 days ahead) for weekends/holidays
             today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            if parsed > today:
+            max_future = today + timedelta(days=5)
+            
+            if parsed > max_future:
                 await ctx.send(
-                    f"❌ **Invalid date:** `{target_date}` is in the future.\n"
-                    f"> The News Grid cannot predict the future (yet).\n"
-                    f"> Please provide today's date or a past date."
+                    f"❌ **Invalid date:** `{target_date}` is too far in the future.\n"
+                    f"> You can target dates up to 5 days ahead to prepare for the next trading session."
                 )
                 return
                 
