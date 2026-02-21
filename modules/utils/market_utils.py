@@ -579,3 +579,72 @@ class MarketCalendar:
         while not MarketCalendar.is_trading_day(curr):
             curr -= datetime.timedelta(days=1)
         return curr
+
+    @staticmethod
+    def get_current_or_next_trading_day(dt):
+        """ If the date is a trading day, returns it. Otherwise, returns the next trading day. """
+        if isinstance(dt, datetime.datetime):
+            dt = dt.date()
+        curr = dt
+        while not MarketCalendar.is_trading_day(curr):
+            curr += datetime.timedelta(days=1)
+        return curr
+
+    @staticmethod
+    def resolve_trading_session(now_utc):
+        """
+        Determines the current trading session based on post-market-close boundaries.
+
+        A session for trading day T spans:
+          Start: (prev_trading_day(T) + 1 day) @ 1 AM UTC  (prev day's post-market close)
+          End:   (T + 1 day) @ 1 AM UTC                    (this day's post-market close)
+
+        Returns: (target_date, session_start, session_end_capped)
+          - target_date:       the trading day this session belongs to
+          - session_start:     datetime (UTC) when the session window opens
+          - session_end_capped: datetime (UTC) session end, capped at now_utc
+        """
+        today = now_utc.date()
+        today_1am = datetime.datetime.combine(today, datetime.time(1, 0), tzinfo=datetime.timezone.utc)
+
+        # After 1 AM: today's boundary has passed → reference today
+        # Before 1 AM: still in yesterday's boundary → reference yesterday
+        if now_utc >= today_1am:
+            reference_date = today
+        else:
+            reference_date = today - datetime.timedelta(days=1)
+
+        target = MarketCalendar.get_current_or_next_trading_day(reference_date)
+
+        prev_td = MarketCalendar.get_prev_trading_day(target)
+        session_start = datetime.datetime.combine(
+            prev_td + datetime.timedelta(days=1), datetime.time(1, 0), tzinfo=datetime.timezone.utc
+        )
+        session_end = datetime.datetime.combine(
+            target + datetime.timedelta(days=1), datetime.time(1, 0), tzinfo=datetime.timezone.utc
+        )
+
+        return target, session_start, min(session_end, now_utc)
+
+    @staticmethod
+    def resolve_session_for_date(target_date_input, now_utc):
+        """
+        Resolves a manually provided date to the correct trading session.
+
+        Non-trading dates (weekends/holidays) are mapped to the next trading day.
+        Returns: (target_date, session_start, session_end_capped)
+        """
+        if isinstance(target_date_input, datetime.datetime):
+            target_date_input = target_date_input.date()
+
+        target = MarketCalendar.get_current_or_next_trading_day(target_date_input)
+
+        prev_td = MarketCalendar.get_prev_trading_day(target)
+        session_start = datetime.datetime.combine(
+            prev_td + datetime.timedelta(days=1), datetime.time(1, 0), tzinfo=datetime.timezone.utc
+        )
+        session_end = datetime.datetime.combine(
+            target + datetime.timedelta(days=1), datetime.time(1, 0), tzinfo=datetime.timezone.utc
+        )
+
+        return target, session_start, min(session_end, now_utc)

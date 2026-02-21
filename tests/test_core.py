@@ -294,9 +294,153 @@ class TestMarketCalendarEarlyClose(unittest.TestCase):
             self.assertTrue(self.cal.is_trading_day(d), f"{d} is early close but should be a trading day")
 
 
-# ═══════════════════════════════════════════════════════
-#  5. MANAGED DRIVER — Context Manager
-# ═══════════════════════════════════════════════════════
+class TestGetCurrentOrNextTradingDay(unittest.TestCase):
+    """Tests for MarketCalendar.get_current_or_next_trading_day()"""
+
+    def setUp(self):
+        from modules.utils.market_utils import MarketCalendar
+        self.cal = MarketCalendar
+
+    def test_trading_day_returns_self(self):
+        # Friday Feb 20, 2026 is a trading day
+        result = self.cal.get_current_or_next_trading_day(datetime.date(2026, 2, 20))
+        self.assertEqual(result, datetime.date(2026, 2, 20))
+
+    def test_saturday_returns_monday(self):
+        # Saturday Feb 21 → Monday Feb 23
+        result = self.cal.get_current_or_next_trading_day(datetime.date(2026, 2, 21))
+        self.assertEqual(result, datetime.date(2026, 2, 23))
+
+    def test_sunday_returns_monday(self):
+        # Sunday Feb 22 → Monday Feb 23
+        result = self.cal.get_current_or_next_trading_day(datetime.date(2026, 2, 22))
+        self.assertEqual(result, datetime.date(2026, 2, 23))
+
+    def test_holiday_skips_to_next(self):
+        # Presidents Day Feb 16 (Mon) → Tuesday Feb 17
+        result = self.cal.get_current_or_next_trading_day(datetime.date(2026, 2, 16))
+        self.assertEqual(result, datetime.date(2026, 2, 17))
+
+    def test_saturday_before_long_weekend(self):
+        # Saturday Feb 14 → skip Sun 15, skip Mon 16 (holiday) → Tuesday Feb 17
+        result = self.cal.get_current_or_next_trading_day(datetime.date(2026, 2, 14))
+        self.assertEqual(result, datetime.date(2026, 2, 17))
+
+    def test_accepts_datetime(self):
+        dt = datetime.datetime(2026, 2, 21, 15, 0)  # Saturday
+        result = self.cal.get_current_or_next_trading_day(dt)
+        self.assertEqual(result, datetime.date(2026, 2, 23))
+
+
+class TestResolveTradingSession(unittest.TestCase):
+    """Tests for MarketCalendar.resolve_trading_session() — automatic mode."""
+
+    def setUp(self):
+        from modules.utils.market_utils import MarketCalendar
+        self.cal = MarketCalendar
+
+    def _utc(self, year, month, day, hour=12, minute=0):
+        return datetime.datetime(year, month, day, hour, minute, tzinfo=datetime.timezone.utc)
+
+    def test_friday_10pm_targets_friday(self):
+        """Friday at 10 PM UTC — still in Friday's session (ends Saturday 1 AM)."""
+        now = self._utc(2026, 2, 20, 22, 0)  # Friday 10 PM
+        target, start, end = self.cal.resolve_trading_session(now)
+        self.assertEqual(target, datetime.date(2026, 2, 20))  # Friday
+        # Session start: prev_td(Friday) = Thursday → Fri 1 AM
+        self.assertEqual(start, self._utc(2026, 2, 20, 1, 0))
+        # End capped at now (before Saturday 1 AM)
+        self.assertEqual(end, now)
+
+    def test_saturday_3am_targets_next_trading_day(self):
+        """Saturday at 3 AM UTC — Friday's session ended at Saturday 1 AM."""
+        now = self._utc(2026, 2, 21, 3, 0)  # Saturday 3 AM
+        target, start, end = self.cal.resolve_trading_session(now)
+        # Next trading day after Saturday = Monday Feb 23
+        self.assertEqual(target, datetime.date(2026, 2, 23))
+        # Session start: prev_td(Monday) = Friday → Saturday 1 AM
+        self.assertEqual(start, self._utc(2026, 2, 21, 1, 0))
+        self.assertEqual(end, now)
+
+    def test_wednesday_before_1am_still_in_tuesday_session(self):
+        """Wednesday at 00:30 UTC — still in Tuesday's session (ends Wed 1 AM)."""
+        now = self._utc(2026, 2, 18, 0, 30)  # Wednesday 00:30
+        target, start, end = self.cal.resolve_trading_session(now)
+        self.assertEqual(target, datetime.date(2026, 2, 17))  # Tuesday
+        # End is capped at now (still before Wed 1 AM)
+        self.assertEqual(end, now)
+
+    def test_wednesday_after_1am_targets_wednesday(self):
+        """Wednesday at 5 AM UTC — in Wednesday's session."""
+        now = self._utc(2026, 2, 18, 5, 0)
+        target, start, end = self.cal.resolve_trading_session(now)
+        self.assertEqual(target, datetime.date(2026, 2, 18))  # Wednesday
+        # Session start: prev_td(Wed) = Tue → Wed 1 AM
+        self.assertEqual(start, self._utc(2026, 2, 18, 1, 0))
+
+    def test_long_weekend_saturday_targets_tuesday(self):
+        """Presidents' Day weekend: Saturday targets Tuesday (next trading day)."""
+        now = self._utc(2026, 2, 14, 15, 0)  # Saturday Feb 14, 3 PM
+        target, start, end = self.cal.resolve_trading_session(now)
+        # Next TD from Saturday = Tuesday Feb 17
+        self.assertEqual(target, datetime.date(2026, 2, 17))
+        # Session start: prev_td(Tue Feb 17) = Fri Feb 13 → Sat Feb 14 1 AM
+        self.assertEqual(start, self._utc(2026, 2, 14, 1, 0))
+
+    def test_long_weekend_monday_targets_tuesday(self):
+        """Presidents' Day (Monday holiday) — still in Tuesday's session."""
+        now = self._utc(2026, 2, 16, 12, 0)  # Monday Feb 16 noon
+        target, start, end = self.cal.resolve_trading_session(now)
+        self.assertEqual(target, datetime.date(2026, 2, 17))
+        self.assertEqual(start, self._utc(2026, 2, 14, 1, 0))
+
+
+class TestResolveSessionForDate(unittest.TestCase):
+    """Tests for MarketCalendar.resolve_session_for_date() — manual date override."""
+
+    def setUp(self):
+        from modules.utils.market_utils import MarketCalendar
+        self.cal = MarketCalendar
+
+    def _utc(self, year, month, day, hour=12, minute=0):
+        return datetime.datetime(year, month, day, hour, minute, tzinfo=datetime.timezone.utc)
+
+    def test_trading_day_maps_to_itself(self):
+        """Feb 13 (Friday) → Friday's session."""
+        now = self._utc(2026, 2, 20, 12, 0)
+        target, start, end = self.cal.resolve_session_for_date(datetime.date(2026, 2, 13), now)
+        self.assertEqual(target, datetime.date(2026, 2, 13))
+        # Session start: prev_td(Fri) = Thu → Fri 1 AM
+        self.assertEqual(start, self._utc(2026, 2, 13, 1, 0))
+        # Session end: Sat 1 AM, but capped at now
+        expected_end = min(self._utc(2026, 2, 14, 1, 0), now)
+        self.assertEqual(end, expected_end)
+
+    def test_sunday_maps_to_next_trading_day(self):
+        """Feb 15 (Sunday) → Tuesday Feb 17 session."""
+        now = self._utc(2026, 2, 16, 12, 0)
+        target, start, end = self.cal.resolve_session_for_date(datetime.date(2026, 2, 15), now)
+        self.assertEqual(target, datetime.date(2026, 2, 17))
+        # Start: prev_td(Tue) = Fri → Sat Feb 14 1 AM
+        self.assertEqual(start, self._utc(2026, 2, 14, 1, 0))
+
+    def test_holiday_maps_to_next_trading_day(self):
+        """Feb 16 (Presidents' Day) → Tuesday Feb 17 session."""
+        now = self._utc(2026, 2, 17, 12, 0)
+        target, start, end = self.cal.resolve_session_for_date(datetime.date(2026, 2, 16), now)
+        self.assertEqual(target, datetime.date(2026, 2, 17))
+
+    def test_all_weekend_dates_same_session(self):
+        """Feb 14 (Sat), 15 (Sun), 16 (Mon holiday), 17 (Tue) all → Tuesday session."""
+        now = self._utc(2026, 2, 18, 12, 0)
+        expected_target = datetime.date(2026, 2, 17)
+        expected_start = self._utc(2026, 2, 14, 1, 0)
+
+        for date in [datetime.date(2026, 2, 14), datetime.date(2026, 2, 15),
+                     datetime.date(2026, 2, 16), datetime.date(2026, 2, 17)]:
+            target, start, _ = self.cal.resolve_session_for_date(date, now)
+            self.assertEqual(target, expected_target, f"Date {date} should resolve to {expected_target}")
+            self.assertEqual(start, expected_start, f"Date {date} should have session start {expected_start}")
 
 class TestManagedDriver(unittest.TestCase):
     """Tests for ManagedDriver context manager (mocked Selenium)."""
