@@ -137,12 +137,12 @@ class NewsDatabase:
 
     def fetch_monitored_tickers(self):
         """
-        Fetches the list of tickers from the 'stocks' table (Analyst DB).
-        Expected table schema: stocks(ticker, ...)
+        Fetches the list of tickers from the 'aw_ticker_notes' table (Analyst DB).
+        Expected table schema: aw_ticker_notes(ticker, ...)
         """
         if not self.client: return []
         
-        sql = "SELECT ticker FROM stocks"
+        sql = "SELECT ticker FROM aw_ticker_notes"
         try:
             rs = self.client.execute(sql)
             # Flatten list of tuples: [('AAPL',), ('TSLA',)] -> ['AAPL', 'TSLA']
