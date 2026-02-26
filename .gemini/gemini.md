@@ -33,6 +33,10 @@ A sophisticated news aggregation and analysis system designed for financial mark
 - **Run Discord Bot:** `python discord_bot/bot.py`
 - **Tests:** `pytest`
 
+## Discord Bot Commands
+- `!rawnews [YYYY-MM-DD]`: Triggers the GitHub Actions News-Fetcher workflow for the specified or current trading date.
+- `!checkrawnews`: Displays the current session window (start/end) and the number of articles currently in the database for that session.
+
 ## Critical Files
 - `.streamlit/secrets.toml`: Local Streamlit secrets (use Infisical for production).
 - `requirements.txt`: Project dependencies.

@@ -1,3 +1,9 @@
 discord.py
 aiohttp
 python-dotenv
+libsql-client
+infisical-python
+python-dateutil
+toml
+requests
+beautifulsoup4
