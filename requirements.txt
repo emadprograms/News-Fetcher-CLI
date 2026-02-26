@@ -11,7 +11,7 @@ cloudscraper
 curl_cffi
 selenium 
 webdriver-manager
-infisical-python
+infisicalsdk
 setuptools<70.0.0 # Required for investpy to access pkg_resources in Python 3.12
 investpy
 python-dateutil

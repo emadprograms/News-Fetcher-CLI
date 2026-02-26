@@ -6,7 +6,7 @@ A sophisticated news aggregation and analysis system designed for financial mark
 - **Language:** Python 3.12+
 - **Frontend:** Streamlit
 - **Database:** Turso (libsql)
-- **Secrets:** Infisical
+- **Secrets:** Infisical (infisicalsdk)
 - **Automation:** Selenium (Headless Chrome), GitHub Actions
 - **Data Sources:** Yahoo Finance, MarketAux, InvestPy, various RSS feeds
 - **Messaging:** Discord (Webhooks & Bot)

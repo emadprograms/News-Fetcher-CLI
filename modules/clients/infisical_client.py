@@ -1,4 +1,4 @@
-from infisical_client import InfisicalClient, ClientSettings, GetSecretOptions, AuthenticationOptions, UniversalAuthMethod, ListSecretsOptions
+from infisical_sdk import InfisicalSDKClient
 import os
 import toml
 from dotenv import load_dotenv
@@ -52,9 +52,11 @@ class InfisicalManager:
 
         if client_id and client_secret:
             try:
-                auth_method = UniversalAuthMethod(client_id=client_id, client_secret=client_secret)
-                options = AuthenticationOptions(universal_auth=auth_method)
-                self.client = InfisicalClient(ClientSettings(auth=options))
+                self.client = InfisicalSDKClient(host="https://app.infisical.com")
+                self.client.auth.universal_auth.login(
+                    client_id=client_id,
+                    client_secret=client_secret
+                )
                 self.is_connected = True
                 print("✅ Infisical Client Connected.")
             except Exception as e:
@@ -70,24 +72,23 @@ class InfisicalManager:
             return None
         
         try:
-            # SDK v2: Use snake_case arguments
-            secret = self.client.getSecret(options=GetSecretOptions(
+            secret = self.client.secrets.get_secret_by_name(
                 secret_name=secret_name,
                 project_id=self.project_id, 
-                environment=environment,
-                path=path
-            ))
+                environment_slug=environment,
+                secret_path=path
+            )
             return secret.secret_value
         except Exception as e:
             # Try lowercase fallback
             if secret_name.isupper() or "_" in secret_name:
                 try:
-                    secret = self.client.getSecret(options=GetSecretOptions(
+                    secret = self.client.secrets.get_secret_by_name(
                         secret_name=secret_name.lower(),
                         project_id=self.project_id, 
-                        environment=environment,
-                        path=path
-                    ))
+                        environment_slug=environment,
+                        secret_path=path
+                    )
                     return secret.secret_value
                 except:
                     pass
@@ -102,11 +103,15 @@ class InfisicalManager:
             return []
         
         try:
-            return self.client.listSecrets(options=ListSecretsOptions(
+            response = self.client.secrets.list_secrets(
                 project_id=self.project_id,
-                environment=environment,
-                path=path
-            ))
+                environment_slug=environment,
+                secret_path=path
+            )
+            # The new SDK returns a ListSecretsResponse; extract the secrets list
+            if hasattr(response, 'secrets'):
+                return response.secrets
+            return response
         except Exception as e:
             print(f"❌ Failed to list secrets: {e}")
             return []

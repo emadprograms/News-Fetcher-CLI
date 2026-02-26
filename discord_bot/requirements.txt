@@ -2,7 +2,7 @@ discord.py
 aiohttp
 python-dotenv
 libsql-client
-infisical-python
+infisicalsdk
 python-dateutil
 toml
 requests
