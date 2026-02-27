@@ -183,12 +183,11 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
     try:
         driver = market_utils.get_selenium_driver(headless=headless)
     except Exception as e:
-        log_callback(f"❌ Failed to launch Chrome: {str(e)}")
-        return []
+        err_msg = f"Failed to launch Chrome: {str(e)}"
+        log_callback(f"❌ {err_msg}")
+        return {"articles": [], "errors": [err_msg]}
 
-    item_limit = max_pages * 20 
-    
-    item_limit = max_pages * 20 
+    item_limit = max_pages * 20
     
     # 🌟 DYNAMIC INJECT: Add Calendar Events to the Hit List
     rss_targets = list(MACRO_RSS_TARGETS) # Copy original
@@ -239,7 +238,6 @@ def run_macro_scan(target_date, max_pages, log_callback, db=None, cache_map=None
             
             # TRACKING START
             pm.mark_target_start(feed_name)
-            feed_name = target['name']
             category_tag = target['category']
             rss_url = target['rss_url']
             

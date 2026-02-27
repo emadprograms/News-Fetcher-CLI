@@ -225,7 +225,7 @@ def run_automation(run_number=1, max_runs=3):
     if not infisical.is_connected:
         update_log("❌ Error: Infisical not connected. Check credentials.")
         report["errors"].append("Infisical connection failed")
-        return
+        return {"success": False, "articles_found": 0, "errors": report["errors"]}
 
     # Fetch Discord Webhook
     discord_webhook = infisical.get_discord_webhook()
@@ -253,13 +253,13 @@ def run_automation(run_number=1, max_runs=3):
         update_log(f"❌ Database Initialization Failed: {e}")
         report["errors"].append(f"Database init failed: {e}")
         send_discord_report(discord_webhook, *build_discord_report(target_date, lookback_start, lookback_end, report, time.time() - start_time))
-        return
+        return {"success": False, "articles_found": 0, "errors": report["errors"]}
 
     if not db:
         update_log("❌ Error: News Database is required for scan result persistence.")
         report["errors"].append("News DB is required but unavailable")
         send_discord_report(discord_webhook, *build_discord_report(target_date, lookback_start, lookback_end, report, time.time() - start_time))
-        return
+        return {"success": False, "articles_found": 0, "errors": report["errors"]}
 
     # 1.5 Sync Calendar
     try:

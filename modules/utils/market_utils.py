@@ -60,18 +60,22 @@ def is_premium_source(title, url):
 def normalize_title(title):
     """
     Standardizes titles for deduplication.
-    1. Trims whitespace.
-    2. Removes common Source Suffixes (e.g. ' - Yahoo Finance').
-    3. Returns CLEAN title (Case preserved). Caller should .lower() if needed.
+    1. Removes common Source Suffixes (e.g. ' - Yahoo Finance').
+    2. Trims whitespace.
+    3. Returns CLEAN title (Case preserved).
     """
-    if not title: return ""
-    t = title.strip()
-    # Suffixes to remove (Order matters? Longest first maybe?)
+    if not isinstance(title, str): return ""
+    
+    # Suffixes to remove
     suffixes = [" - Yahoo Finance", " - Bloomberg", " - Reuters", " - CNBC", " - MarketWatch", " - The Wall Street Journal"]
+    
+    base = title
     for s in suffixes:
-        if t.endswith(s):
-            t = t.rsplit(s, 1)[0].strip()
-    return t
+        if base.endswith(s):
+            base = base[:base.rfind(s)]
+            break # Only remove the last/primary source suffix
+            
+    return base.strip()
 
 # --- CHROME CONFIGURATION ---
 # Auto-detect Chrome Path for stabilization on Windows/Mac

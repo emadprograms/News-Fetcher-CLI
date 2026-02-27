@@ -180,11 +180,14 @@ class InfisicalManager:
         try:
             all_secrets = self.list_secrets()
             for s in all_secrets:
-                if s.secret_key.lower().startswith("marketaux-"):
+                key_name = getattr(s, 'secret_key', None) or getattr(s, 'secretKey', None) or (s.get('secret_key') if isinstance(s, dict) else None)
+                if not key_name:
+                    continue
+                if key_name.lower().startswith("marketaux-"):
                     if hasattr(s, 'secret_value'):
                         keys.append(s.secret_value)
                     else:
-                        val = self.get_secret(s.secret_key)
+                        val = self.get_secret(key_name)
                         if val: keys.append(val)
                         
             print(f"🔑 Found {len(keys)} MarketAux keys via dynamic discovery.")

@@ -553,6 +553,7 @@ class NewsDatabase:
 
     def get_last_update_time(self):
         """ Returns the timestamp of the most recently added news item. """
+        if not self.client: return None
         try:
             rs = self.client.execute("SELECT MAX(created_at) FROM market_news")
             if rs.rows and rs.rows[0][0]:

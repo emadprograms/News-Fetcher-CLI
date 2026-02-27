@@ -62,15 +62,11 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
     scans YAHOO_RSS_TARGETS for news.
     Returns dict: {"articles": [...], "errors": [...]}
     """
-    # Use passed list (Resume) or Default
-    # if not ticker_list:
-    #     ticker_list = TARGET_STOCKS
-    
     found_reports = []
     scan_errors = []  # Track errors for Discord reporting
     consecutive_driver_failures = 0
     MAX_CONSECUTIVE_FAILURES = 3
-    seen_titles = set()
+    seen_titles = {}
     if existing_titles:
         if isinstance(existing_titles, set):
             seen_titles = {t: "?" for t in existing_titles} # Convert for robust check
@@ -92,9 +88,10 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
     try:
         driver = market_utils.get_selenium_driver(headless=headless)
     except Exception as e:
-        log_callback(f"❌ Failed to launch Chrome: {str(e)}")
+        err_msg = f"Failed to launch Chrome: {str(e)}"
+        log_callback(f"❌ {err_msg}")
         log_callback(f"   (Run 'pip install selenium webdriver-manager')")
-        return []
+        return {"articles": [], "errors": [err_msg]}
 
     item_limit = max_pages * 20
     
@@ -383,7 +380,6 @@ def run_stocks_scan(target_date, max_pages, log_callback, db=None, cache_map=Non
                             "category": category_tag
                         }
                         
-                        # 💾 INCREMENTAL SAVE
                         # 💾 INCREMENTAL SAVE
                         if db:
                             inserted_count, dups_count = db.insert_news([report_item], category_tag, trading_session_date=trading_session_date)
@@ -742,7 +738,7 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
                 log_callback(f"│   └── ❌ Stock RSS Error: {str(e)}")
             
             # TRACKING COMPLETE
-            pm.mark_target_complete(feed_name)
+            pm.mark_target_complete(ticker)
 
              # 🧹 SANITIZE DRIVER
             try: 
@@ -758,6 +754,10 @@ def run_company_specific_scan(target_date, ticker_list, max_pages, log_callback,
         
         # 🏁 ONLY FINISH if we actually went through the targets
         if 'active_targets' in locals() and len(active_targets) > 0:
+             pm.finish_scan()
+
+        # Also finish for company scan
+        if 'ticker_list' in locals() and len(ticker_list) > 0:
              pm.finish_scan()
             
     return found_reports

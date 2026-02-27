@@ -42,7 +42,7 @@ MEGA_CAP_TICKERS = {
 ECO_CALENDAR_URL = "https://finance.yahoo.com/calendar/economic"
 EARNINGS_CALENDAR_URL = "https://finance.yahoo.com/calendar/earnings"
 
-from modules.utils.market_utils import get_selenium_driver, HEADERS # Reuse existing driver factory and headers
+from modules.utils.market_utils import get_selenium_driver, force_quit_driver, HEADERS # Reuse existing driver factory and headers
 
 class CalendarPopulator:
     def __init__(self, db: db_client.NewsDatabase, analyst_db=None):
@@ -239,6 +239,6 @@ class CalendarPopulator:
         finally:
             if driver:
                 print("🛑 Closing Earnings Browser.")
-                driver.quit()
+                force_quit_driver(driver)
             
         return events
