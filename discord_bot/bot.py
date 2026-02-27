@@ -53,7 +53,24 @@ async def check_raw_news(ctx):
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=data) as response:
                 if response.status == 204:
-                    await status_msg.edit(content="💠 **Check Dispatched!**\n> GitHub is now querying the session status. The report will be delivered via webhook shortly. 📡")
+                    await status_msg.edit(content="💠 **Check Dispatched!**\n> GitHub is now querying the session status... Fetching live link... 📡")
+                    
+                    # Try up to 3 times with 4s wait each to get the live link
+                    live_url = None
+                    for attempt in range(1, 4):
+                        await asyncio.sleep(4)
+                        runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/runs"
+                        async with session.get(runs_url, headers=headers) as runs_resp:
+                            if runs_resp.status == 200:
+                                runs_data = await runs_resp.json()
+                                if runs_data.get("workflow_runs"):
+                                    live_url = runs_data["workflow_runs"][0]["html_url"]
+                                    break
+                    
+                    if live_url:
+                        await status_msg.edit(content=f"💠 **Check Dispatched!**\n> GitHub is now querying the session status.\n> 🔗 **[Watch Live Status Check on GitHub]({live_url})**\n\n> The report will be delivered via webhook shortly. 📡")
+                    else:
+                        await status_msg.edit(content="💠 **Check Dispatched!**\n> GitHub is now querying the session status. (Live link could not be retrieved - check GitHub Actions manually)\n\n> The report will be delivered via webhook shortly. 📡")
                 else:
                     response_json = await response.json() if response.content_type == 'application/json' else {}
                     error_details = response_json.get("message", await response.text())
