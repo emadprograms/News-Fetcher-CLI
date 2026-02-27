@@ -38,6 +38,9 @@ class InfisicalManager:
         if not self.project_id:
             self.project_id = os.getenv("INFISICAL_PROJECT_ID")
         
+        # 2.5 Resolve Environment
+        self.default_env = os.getenv("INFISICAL_ENV", "dev")
+        
         # 3. Last Resort: Local secrets.toml (Direct file read for CLI)
         if not client_id or not client_secret or not self.project_id:
             try:
@@ -47,6 +50,8 @@ class InfisicalManager:
                     if not client_id: client_id = sec.get("client_id")
                     if not client_secret: client_secret = sec.get("client_secret")
                     if not self.project_id: self.project_id = sec.get("project_id")
+                    if not self.default_env and sec.get("environment"):
+                        self.default_env = sec.get("environment")
             except:
                 pass
 
@@ -58,54 +63,88 @@ class InfisicalManager:
                     client_secret=client_secret
                 )
                 self.is_connected = True
-                print("✅ Infisical Client Connected.")
+                print(f"✅ Infisical Client Connected (Env: {self.default_env}).")
             except Exception as e:
                 print(f"❌ Infisical Connection Failed: {e}")
         else:
             print("⚠️ Infisical Credentials not found in ENV or secrets.toml.")
 
-    def get_secret(self, secret_name, environment="dev", path="/"):
+    def _extract_value(self, secret_obj):
+        """ Helper to extract value from various Infisical SDK response versions. """
+        if not secret_obj: return None
+        
+        # Strategy A: Check for nested 'secret' object (v3 SDK)
+        if hasattr(secret_obj, 'secret'):
+            nested = getattr(secret_obj, 'secret')
+            for attr in ['secret_value', 'secretValue', 'value']:
+                if hasattr(nested, attr):
+                    return getattr(nested, attr)
+        
+        # Strategy B: Try direct attributes (v2 SDK or fallback)
+        for attr in ['secret_value', 'secretValue', 'value']:
+            if hasattr(secret_obj, attr):
+                return getattr(secret_obj, attr)
+        
+        # Strategy C: Try dict access
+        if isinstance(secret_obj, dict):
+            return secret_obj.get('secret_value') or secret_obj.get('secretValue') or secret_obj.get('value')
+            
+        return None
+
+    def get_secret(self, secret_name, environment=None, path="/"):
         """
         Retrieves a single secret value.
         """
         if not self.is_connected:
             return None
         
+        env = environment or self.default_env
+        
         try:
-            secret = self.client.secrets.get_secret_by_name(
+            response = self.client.secrets.get_secret_by_name(
                 secret_name=secret_name,
                 project_id=self.project_id, 
-                environment_slug=environment,
+                environment_slug=env,
                 secret_path=path
             )
-            return secret.secret_value
+            val = self._extract_value(response)
+            if val is not None:
+                return val
+            else:
+                raise AttributeError(f"Could not extract value from secret object: {type(response)}")
+
         except Exception as e:
-            # Try lowercase fallback
+            # Try lowercase fallback if not already tried
             if secret_name.isupper() or "_" in secret_name:
                 try:
-                    secret = self.client.secrets.get_secret_by_name(
+                    response = self.client.secrets.get_secret_by_name(
                         secret_name=secret_name.lower(),
                         project_id=self.project_id, 
-                        environment_slug=environment,
+                        environment_slug=env,
                         secret_path=path
                     )
-                    return secret.secret_value
+                    val = self._extract_value(response)
+                    if val is not None:
+                        return val
                 except:
                     pass
-            print(f"❌ Failed to fetch secret '{secret_name}': {e}")
+            
+            print(f"❌ Failed to fetch secret '{secret_name}' (Env: {env}): {e}")
             return None
 
-    def list_secrets(self, environment="dev", path="/"):
+    def list_secrets(self, environment=None, path="/"):
         """
         Lists all secrets in the project.
         """
         if not self.is_connected:
             return []
         
+        env = environment or self.default_env
+        
         try:
             response = self.client.secrets.list_secrets(
                 project_id=self.project_id,
-                environment_slug=environment,
+                environment_slug=env,
                 secret_path=path
             )
             # The new SDK returns a ListSecretsResponse; extract the secrets list
@@ -113,7 +152,7 @@ class InfisicalManager:
                 return response.secrets
             return response
         except Exception as e:
-            print(f"❌ Failed to list secrets: {e}")
+            print(f"❌ Failed to list secrets (Env: {env}): {e}")
             return []
 
     def get_marketaux_keys(self):
