@@ -68,7 +68,7 @@ async def check_raw_news(ctx):
                                     break
                     
                     if live_url:
-                        await status_msg.edit(content=f"💠 **Check Dispatched!**\n> GitHub is now querying the session status.\n> 🔗 **[Watch Live Status Check on GitHub]({live_url})**\n\n> The report will be delivered via webhook shortly. 📡")
+                        await status_msg.edit(content=f"💠 **Check Dispatched!**\n> GitHub is now querying the session status.\n> 🔗 **[Watch Live Status Check on GitHub](<{live_url}>)**\n\n> The report will be delivered via webhook shortly. 📡")
                     else:
                         await status_msg.edit(content="💠 **Check Dispatched!**\n> GitHub is now querying the session status. (Live link could not be retrieved - check GitHub Actions manually)\n\n> The report will be delivered via webhook shortly. 📡")
                 else:
@@ -159,7 +159,7 @@ async def trigger_fetch(ctx, target_date: str = None):
                     
                     if live_url:
                         date_note = f" for `{target_date}`" if target_date else ""
-                        await status_msg.edit(content=f"💠 **Transmission Successful!**{date_note}\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub]({live_url})**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
+                        await status_msg.edit(content=f"💠 **Transmission Successful!**{date_note}\n> **NewsFetcher** is now initializing the background runner.\n> 🔗 **[Watch Live Updates on GitHub](<{live_url}>)**\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                     else:
                         await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link could not be retrieved - check GitHub Actions manually)\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                 else:
