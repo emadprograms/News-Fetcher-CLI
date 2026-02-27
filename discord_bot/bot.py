@@ -1,18 +1,10 @@
 import os
-import sys
 import discord
 from discord.ext import commands
 import aiohttp
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
-
-# Ensure the root directory is in the path so we can import modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from modules.clients.db_client import NewsDatabase
-from modules.clients.infisical_client import InfisicalManager
-import modules.utils.market_utils as market_utils
 
 # Load local environment variables if present
 load_dotenv()
@@ -37,55 +29,37 @@ async def on_ready():
 
 @bot.command(name="checkrawnews")
 async def check_raw_news(ctx):
-    """Shows the current session window and how many articles are in the database for it."""
+    """Triggers a session status check via GitHub Actions."""
+    status_msg = await ctx.send("📡 **Connecting to News Grid...** Dispatching status check signal.")
+    
+    # Prepare GitHub API request
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/dispatches"
+    
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
+    
+    # Trigger the workflow with mode='check'
+    data = {
+        "ref": "main",
+        "inputs": {
+            "mode": "check"
+        }
+    }
+    
     try:
-        status_msg = await ctx.send("🔍 **Checking database...**")
-        
-        # 🕒 Resolve Current Session
-        now_utc = datetime.now(timezone.utc)
-        target_date, lookback_start, lookback_end = market_utils.MarketCalendar.resolve_trading_session(now_utc)
-        
-        # 🔗 Connect to Database
-        infisical = InfisicalManager()
-        if not infisical.is_connected:
-            await status_msg.edit(content="❌ **Error:** Could not connect to Infisical.")
-            return
-
-        db_url, db_token = infisical.get_turso_news_credentials()
-        if not db_url or not db_token:
-            await status_msg.edit(content="❌ **Error:** Database credentials missing in Infisical.")
-            return
-            
-        db = NewsDatabase(db_url, db_token, init_schema=False)
-        
-        # 📊 Count Articles
-        iso_start = lookback_start.isoformat()
-        iso_end = lookback_end.isoformat()
-        total_in_db = db.count_news_range(iso_start, iso_end)
-        
-        # Build Response
-        start_str = lookback_start.strftime("%a %b %d, %H:%M UTC")
-        end_str = lookback_end.strftime("%a %b %d, %H:%M UTC")
-        
-        embed = discord.Embed(
-            title=f"📊 Session Status: {target_date}",
-            description=(
-                f"🗓️ **Start:** `{start_str}`\n"
-                f"🗓️ **End:** `{end_str}`\n\n"
-                f"📰 **Articles in DB:** `{total_in_db}`"
-            ),
-            color=0x3498db, # Blue
-            timestamp=now_utc
-        )
-        embed.set_footer(text="NewsFetcher Live Grid")
-        
-        await status_msg.edit(content=None, embed=embed)
-        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=data) as response:
+                if response.status == 204:
+                    await status_msg.edit(content="💠 **Check Dispatched!**\n> GitHub is now querying the session status. The report will be delivered via webhook shortly. 📡")
+                else:
+                    response_json = await response.json() if response.content_type == 'application/json' else {}
+                    error_details = response_json.get("message", await response.text())
+                    await status_msg.edit(content=f"❌ **Failed to trigger check.**\nGitHub API Error ({response.status}): `{error_details}`")
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in !checkrawnews: {error_details}")
-        await ctx.send(f"⚠️ **Internal Error:** `{str(e)}`")
+        await status_msg.edit(content=f"⚠️ **Internal Error:** Could not reach GitHub.\n`{str(e)}`")
 
 @bot.command(name="rawnews")
 async def trigger_fetch(ctx, target_date: str = None):

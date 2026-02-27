@@ -7,6 +7,14 @@ on:
     - cron: '11 2 * * *'  # 2:11 AM UTC (Off-peak)
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Operation Mode: hunt (Full automation) or check (Minimal session status check).'
+        required: true
+        default: 'hunt'
+        type: choice
+        options:
+          - hunt
+          - check
       target_date:
         description: 'Optional: Date to scan (YYYY-MM-DD). If left blank, it automatically runs for the current "Trading Day" using our market-centric logic (e.g. tracking news across weekends/holidays until the market reopens). Only enter a date if you want to force a scan for a specific past day.'
         required: false
@@ -40,6 +48,7 @@ jobs:
           INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
           INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
           TARGET_DATE: ${{ github.event.inputs.target_date }}
+          MODE: ${{ github.event.inputs.mode == 'check' && 'CHECK' || 'HUNT' }}
         run: |
           # The main.py is already configured to run with headless=True
           python3 main.py

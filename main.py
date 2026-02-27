@@ -421,10 +421,70 @@ def run_automation(run_number=1, max_runs=3):
         "errors": report["errors"]
     }
 
+def run_check_only():
+    """
+    Minimal run that only checks the session status and database count.
+    Used by the Discord bot via GitHub Actions to avoid direct DB load from the bot.
+    """
+    update_log("🔍 INITIATING SESSION STATUS CHECK...")
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    
+    # Resolve Session
+    manual_date_str = os.environ.get("TARGET_DATE", "").strip()
+    if manual_date_str:
+        try:
+            manual_date = datetime.datetime.strptime(manual_date_str, "%Y-%m-%d").date()
+            target_date, lookback_start, lookback_end = market_utils.MarketCalendar.resolve_session_for_date(manual_date, now_utc)
+        except ValueError:
+            target_date, lookback_start, lookback_end = market_utils.MarketCalendar.resolve_trading_session(now_utc)
+    else:
+        target_date, lookback_start, lookback_end = market_utils.MarketCalendar.resolve_trading_session(now_utc)
+
+    # Connect to DB & Infisical
+    infisical = InfisicalManager()
+    if not infisical.is_connected:
+        update_log("❌ Infisical Connection Failed")
+        return
+        
+    webhook = infisical.get_discord_webhook()
+    db_url, db_token = infisical.get_turso_news_credentials()
+    
+    if not db_url or not db_token:
+        update_log("❌ DB Credentials Missing")
+        return
+        
+    db = NewsDatabase(db_url, db_token, init_schema=False)
+    iso_start = lookback_start.isoformat()
+    iso_end = lookback_end.isoformat()
+    total_db = db.count_news_range(iso_start, iso_end)
+    
+    # Build Embed
+    start_str = lookback_start.strftime("%a %b %d, %H:%M UTC")
+    end_str = lookback_end.strftime("%a %b %d, %H:%M UTC")
+    
+    embed = {
+        "title": f"📊 Session Status: {target_date}",
+        "description": (
+            f"🗓️ **Start:** `{start_str}`\n"
+            f"🗓️ **End:** `{end_str}`\n\n"
+            f"📰 **Articles in DB:** `{total_db}`"
+        ),
+        "color": 0x3498db, # Blue
+        "footer": {"text": "NewsFetcher Live Grid | Status Query"}
+    }
+    
+    send_discord_report(webhook, None, [embed])
+    update_log(f"✅ Status Check Complete: {total_db} articles found.")
+
 MAX_HUNT_RUNS = 3
 COOLDOWN_BETWEEN_RUNS = 30  # seconds
 
 if __name__ == "__main__":
+    # Check if we are in "CHECK" mode
+    if os.environ.get("MODE") == "CHECK":
+        run_check_only()
+        sys.exit(0)
+
     for run_num in range(1, MAX_HUNT_RUNS + 1):
         try:
             update_log(f"\n{'='*50}")
