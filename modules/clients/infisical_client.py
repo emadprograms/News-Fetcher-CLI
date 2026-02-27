@@ -91,6 +91,28 @@ class InfisicalManager:
             
         return None
 
+    def _extract_key_name(self, secret_obj):
+        """ Helper to extract key name from various Infisical SDK response versions. """
+        if not secret_obj: return None
+        
+        # Strategy A: Check for nested 'secret' object (v3 SDK)
+        if hasattr(secret_obj, 'secret'):
+            nested = getattr(secret_obj, 'secret')
+            for attr in ['secret_key', 'secretKey', 'key']:
+                if hasattr(nested, attr):
+                    return getattr(nested, attr)
+
+        # Strategy B: Try direct attributes
+        for attr in ['secret_key', 'secretKey', 'key']:
+            if hasattr(secret_obj, attr):
+                return getattr(secret_obj, attr)
+        
+        # Strategy C: Try dict access
+        if isinstance(secret_obj, dict):
+            return secret_obj.get('secret_key') or secret_obj.get('secretKey') or secret_obj.get('key')
+            
+        return None
+
     def get_secret(self, secret_name, environment=None, path="/"):
         """
         Retrieves a single secret value.
@@ -157,40 +179,31 @@ class InfisicalManager:
 
     def get_marketaux_keys(self):
         """
-        Helper to fetch keys. Dynamically finds all secrets starting with 'marketaux-'.
+        Helper to fetch keys. Dynamically finds all secrets starting with 'marketaux-' or 'marketaux_'.
         """
         keys = []
         
-        # 1. Try Legacy List (Just in case)
-        val = self.get_secret("MARKETAUX_API_KEYS")
-        if val:
-            if "[" in val and "]" in val:
-                 import json
-                 try:
-                     keys.extend(json.loads(val))
-                 except:
-                     pass
-            elif "," in val:
-                keys.extend([k.strip() for k in val.split(",") if k.strip()])
-            else:
-                keys.append(val)
-        
-        # 2. Dynamic Discovery (The robust way)
-        # Find all secrets that start with "marketaux-"
+        # Dynamic Discovery (The primary and only way)
         try:
             all_secrets = self.list_secrets()
             for s in all_secrets:
-                key_name = getattr(s, 'secret_key', None) or getattr(s, 'secretKey', None) or (s.get('secret_key') if isinstance(s, dict) else None)
+                key_name = self._extract_key_name(s)
                 if not key_name:
                     continue
-                if key_name.lower().startswith("marketaux-"):
-                    if hasattr(s, 'secret_value'):
-                        keys.append(s.secret_value)
-                    else:
+                
+                # Check for both prefixes
+                k_lower = key_name.lower()
+                if k_lower.startswith("marketaux-") or k_lower.startswith("marketaux_"):
+                    val = self._extract_value(s)
+                    if not val:
+                        # Fallback: Fetch explicitly if value not in list response
                         val = self.get_secret(key_name)
-                        if val: keys.append(val)
+                    
+                    if val:
+                        keys.append(val)
                         
-            print(f"🔑 Found {len(keys)} MarketAux keys via dynamic discovery.")
+            if keys:
+                print(f"🔑 Found {len(keys)} MarketAux keys via dynamic discovery.")
             
         except Exception as e:
             print(f"⚠️ Dynamic discovery failed: {e}")
