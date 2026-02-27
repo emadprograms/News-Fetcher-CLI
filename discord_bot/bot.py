@@ -13,7 +13,9 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_PAT")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "emadprograms/News-Fetcher-CLI")
-WORKFLOW_FILENAME = os.getenv("WORKFLOW_FILENAME", "manual_run.yml")
+# Workflows
+FETCH_WORKFLOW = "newsfetcher.yml"
+CHECK_WORKFLOW = "news_checker.yml"
 
 # Setup intents for message reading
 intents = discord.Intents.default()
@@ -62,7 +64,7 @@ async def check_raw_news(ctx, target_date: str = None):
         status_msg = await ctx.send("📡 **Connecting to News Grid...** Dispatching status check signal.")
     
     # Prepare GitHub API request
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/dispatches"
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{CHECK_WORKFLOW}/dispatches"
     
     headers = {
         "Accept": "application/vnd.github.v3+json",
@@ -70,12 +72,10 @@ async def check_raw_news(ctx, target_date: str = None):
         "X-GitHub-Api-Version": "2022-11-28"
     }
     
-    # Trigger the workflow with mode='check'
+    # Trigger the workflow
     data = {
         "ref": "main",
-        "inputs": {
-            "mode": "check"
-        }
+        "inputs": {}
     }
 
     # Add optional target_date input if provided
@@ -92,7 +92,7 @@ async def check_raw_news(ctx, target_date: str = None):
                     live_url = None
                     for attempt in range(1, 4):
                         await asyncio.sleep(4)
-                        runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/runs"
+                        runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{CHECK_WORKFLOW}/runs"
                         async with session.get(runs_url, headers=headers) as runs_resp:
                             if runs_resp.status == 200:
                                 runs_data = await runs_resp.json()
@@ -147,7 +147,7 @@ async def trigger_fetch(ctx, target_date: str = None):
         status_msg = await ctx.send("📡 **Connecting to News Grid...** Dispatching signal to GitHub.")
     
     # Prepare GitHub API request
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/dispatches"
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{FETCH_WORKFLOW}/dispatches"
     
     headers = {
         "Accept": "application/vnd.github.v3+json",
@@ -180,7 +180,7 @@ async def trigger_fetch(ctx, target_date: str = None):
                         await asyncio.sleep(4)
                         print(f"Attempt {attempt} to fetch live link...")
                         
-                        runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/runs"
+                        runs_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{FETCH_WORKFLOW}/runs"
                         async with session.get(runs_url, headers=headers) as runs_resp:
                             if runs_resp.status == 200:
                                 runs_data = await runs_resp.json()
