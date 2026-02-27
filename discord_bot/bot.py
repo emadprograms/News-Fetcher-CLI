@@ -28,9 +28,38 @@ async def on_ready():
     print('Bot is ready to receive commands.')
 
 @bot.command(name="checkrawnews")
-async def check_raw_news(ctx):
-    """Triggers a session status check via GitHub Actions."""
-    status_msg = await ctx.send("📡 **Connecting to News Grid...** Dispatching status check signal.")
+async def check_raw_news(ctx, target_date: str = None):
+    """Triggers a session status check via GitHub Actions. Optional: !checkrawnews YYYY-MM-DD"""
+    
+    # 🛡️ Validate date format BEFORE dispatching
+    if target_date:
+        try:
+            parsed = datetime.strptime(target_date, "%Y-%m-%d")
+            
+            # Allow targeting upcoming trading days (up to 5 days ahead) for weekends/holidays
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            max_future = today + timedelta(days=5)
+            
+            if parsed > max_future:
+                await ctx.send(
+                    f"❌ **Invalid date:** `{target_date}` is too far in the future.\n"
+                    f"> You can target dates up to 5 days ahead to prepare for the next trading session."
+                )
+                return
+                
+            target_date = parsed.strftime("%Y-%m-%d")  # Normalize to clean format
+        except ValueError:
+            await ctx.send(
+                f"❌ **Invalid date format:** `{target_date}`\n"
+                f"> Expected format: **YYYY-MM-DD** (e.g. `2026-02-18`)\n"
+                f"> Please try again with a valid date."
+            )
+            return
+
+    if target_date:
+        status_msg = await ctx.send(f"📡 **Connecting to News Grid...** Dispatching status check signal for `{target_date}`.")
+    else:
+        status_msg = await ctx.send("📡 **Connecting to News Grid...** Dispatching status check signal.")
     
     # Prepare GitHub API request
     url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{WORKFLOW_FILENAME}/dispatches"
@@ -48,6 +77,10 @@ async def check_raw_news(ctx):
             "mode": "check"
         }
     }
+
+    # Add optional target_date input if provided
+    if target_date:
+        data["inputs"]["target_date"] = target_date
     
     try:
         async with aiohttp.ClientSession() as session:
