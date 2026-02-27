@@ -12,7 +12,7 @@ load_dotenv()
 # Configuration from Environment Variables
 DISCORD_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 GITHUB_TOKEN = os.getenv("GITHUB_PAT")
-GITHUB_REPO = os.getenv("GITHUB_REPO", "emadprograms/News-Fetcher-CLI")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "emadprograms/news-fetcher")
 # Workflows
 FETCH_WORKFLOW = "newsfetcher.yml"
 CHECK_WORKFLOW = "news_checker.yml"
@@ -105,9 +105,14 @@ async def check_raw_news(ctx, target_date: str = None):
                     else:
                         await status_msg.edit(content="💠 **Check Dispatched!**\n> GitHub is now querying the session status. (Live link could not be retrieved - check GitHub Actions manually)\n\n> The report will be delivered via webhook shortly. 📡")
                 else:
-                    response_json = await response.json() if response.content_type == 'application/json' else {}
-                    error_details = response_json.get("message", await response.text())
-                    await status_msg.edit(content=f"❌ **Failed to trigger check.**\nGitHub API Error ({response.status}): `{error_details}`")
+                    try:
+                        response_json = await response.json()
+                        error_details = response_json.get("message", "No error message provided")
+                    except:
+                        error_details = await response.text()
+                    
+                    await status_msg.edit(content=f"❌ **Failed to trigger check.**\nGitHub API Error ({response.status}): `{error_details}`\n> **Workflow:** `{CHECK_WORKFLOW}`\n> **Repo:** `{GITHUB_REPO}`")
+                    print(f"Failed to trigger: {response.status} - {error_details}")
     except Exception as e:
         await status_msg.edit(content=f"⚠️ **Internal Error:** Could not reach GitHub.\n`{str(e)}`")
 
@@ -157,14 +162,13 @@ async def trigger_fetch(ctx, target_date: str = None):
     
     # We trigger the workflow on the 'main' branch
     data = {
-        "ref": "main"
+        "ref": "main",
+        "inputs": {}
     }
     
     # Add optional target_date input if provided
     if target_date:
-        data["inputs"] = {
-            "target_date": target_date
-        }
+        data["inputs"]["target_date"] = target_date
     
     try:
         async with aiohttp.ClientSession() as session:
@@ -196,10 +200,14 @@ async def trigger_fetch(ctx, target_date: str = None):
                     else:
                         await status_msg.edit(content="💠 **Transmission Successful!**\n> **NewsFetcher** is now initializing the background runner. (Live link could not be retrieved - check GitHub Actions manually)\n\n> A typical run takes **10-15 minutes**. The final report will be delivered here once complete. 📰")
                 else:
-                    response_json = await response.json() if response.content_type == 'application/json' else {}
-                    error_details = response_json.get("message", await response.text())
-                    await status_msg.edit(content=f"❌ **Failed to trigger workflow.**\nGitHub API Error ({response.status}): `{error_details}`")
-                    print(f"Failed to trigger: {response.status} - {await response.text()}")
+                    try:
+                        response_json = await response.json()
+                        error_details = response_json.get("message", "No error message provided")
+                    except:
+                        error_details = await response.text()
+                    
+                    await status_msg.edit(content=f"❌ **Failed to trigger workflow.**\nGitHub API Error ({response.status}): `{error_details}`\n> **Workflow:** `{FETCH_WORKFLOW}`\n> **Repo:** `{GITHUB_REPO}`")
+                    print(f"Failed to trigger: {response.status} - {error_details}")
             
     except Exception as e:
         await status_msg.edit(content=f"⚠️ **Internal Error:** Could not reach GitHub.\n`{str(e)}`")
