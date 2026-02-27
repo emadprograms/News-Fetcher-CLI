@@ -414,6 +414,14 @@ def run_automation(run_number=1, max_runs=3):
     db.log_hunt_end(hunt_id, hunt_status, total_found, report["total_in_db"], duration, report["errors"] or None)
     update_log(f"💓 Hunt Heartbeat Finalized: {hunt_status}")
 
+    # Properly Close Databases
+    try:
+        db.close()
+        if analyst_db:
+            analyst_db.close()
+    except:
+        pass
+
     # Return result for multi-run logic
     return {
         "success": not report["errors"],
@@ -475,6 +483,12 @@ def run_check_only():
     
     send_discord_report(webhook, None, [embed])
     update_log(f"✅ Status Check Complete: {total_db} articles found.")
+    
+    # Properly Close DB
+    try:
+        db.close()
+    except:
+        pass
 
 MAX_HUNT_RUNS = 3
 COOLDOWN_BETWEEN_RUNS = 30  # seconds
@@ -483,7 +497,8 @@ if __name__ == "__main__":
     # Check if we are in "CHECK" mode
     if os.environ.get("MODE") == "CHECK":
         run_check_only()
-        sys.exit(0)
+        update_log("🎬 STATUS CHECK FINISHED.")
+        os._exit(0) # Force exit to prevent hanging on unclosed aiohttp sessions
 
     for run_num in range(1, MAX_HUNT_RUNS + 1):
         try:

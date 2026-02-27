@@ -603,3 +603,12 @@ class NewsDatabase:
             self.client.execute(sql, [ended_at, status, articles_found, articles_in_session, duration_seconds, errors_str, hunt_id])
         except Exception as e:
             print(f"⚠️ Hunt Log End Error: {e}")
+
+    def close(self):
+        """ Properly closes the database client. """
+        if self.client:
+            try:
+                self.client.close()
+                self.client = None
+            except:
+                pass
